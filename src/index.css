@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand Colors - Light Mode */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 28 100% 47%; /* #F07D00 - Brand Orange */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 23%; /* #3B3B3B - Brand Dark Gray */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 1% 48%; /* #7A7979 - Brand Text Gray */
+    --accent: 28 100% 47%; /* Brand Orange for accents */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 28 100% 47%;
+    --radius: 0.75rem;
+    
+    /* Brand gradient colors */
+    --brand-orange: 28 100% 47%;
+    --brand-orange-light: 28 100% 55%;
+    --brand-orange-dark: 28 100% 40%;
+  }
+
+  .dark {
+    /* Brand Colors - Dark Mode (Predominante) */
+    --background: 0 0% 7%; /* Muito mais escuro */
+    --foreground: 0 0% 95%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 28 100% 55%; /* #F07D00 mais vibrante no dark */
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 15%; /* Mais escuro que #3B3B3B */
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 1% 60%; /* #7A7979 mais claro para contraste */
+    --accent: 28 100% 55%; /* Brand Orange brilhante */
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 80% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 28 100% 55%;
+    
+    /* Brand gradient colors enhanced for dark */
+    --brand-orange: 28 100% 55%;
+    --brand-orange-light: 28 100% 65%;
+    --brand-orange-dark: 28 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Brand Orange Glow Effects */
+.glow-orange {
+  box-shadow: 0 0 20px rgba(240, 125, 0, 0.5), 0 0 40px rgba(240, 125, 0, 0.3);
+}
+
+.glow-orange-strong {
+  box-shadow: 0 0 30px rgba(240, 125, 0, 0.7), 0 0 60px rgba(240, 125, 0, 0.5), 0 0 90px rgba(240, 125, 0, 0.3);
+}
+
+/* Dark gradient overlays */
+.dark-overlay {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.7));
+}

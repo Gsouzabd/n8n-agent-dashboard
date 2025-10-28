@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "n8n-agent-dashboard",
+			"path": "../../.."
+		},
+		{
+			"name": "arquivos para treinamento magnetron (1)",
+			"path": "../../../../../Downloads/arquivos para treinamento magnetron (1)"
+		}
+	],
+	"settings": {}
+}

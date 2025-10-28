@@ -1,0 +1,524 @@
+{
+  "name": "MAG] HelperAgent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mag-helper-agent",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        160
+      ],
+      "id": "4c618aa6-cd70-4488-ba07-412d0a93f606",
+      "name": "Webhook",
+      "webhookId": "aad39c34-9ea0-427a-99ae-8a363ada5c9d",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "fiLiIWKGnVoMgpMd",
+          "name": "MAG-HELPER-AGENT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "agent_id",
+              "value": "={{ $json.body.agent_id ?? 'e5a4ea22-d5c2-4ef7-9ad0-312eeb6bba95'\n}}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $json.body.session_id }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "history",
+              "value": "={{ JSON.stringify($json.body.history || []) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d5f51073-795c-482e-a0c2-b46436bfeb5b",
+      "name": "Extract Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"response\": $json.response, \"session_id\": $json.session_id } }}",
+        "options": {}
+      },
+      "id": "e4cc9917-b6fd-41fb-8721-a127bbb01fe4",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract Data').item.json.body.message }}",
+        "options": {
+          "systemMessage": "= {{ $json.system_prompt }}\n\nVocê é um assistente especializado em peças de motocicletas Honda, Yamaha, Suzuki e outras marcas. SEMPRE use a ferramenta SupabaseVectorStore para buscar informações na base de conhecimento antes de responder qualquer pergunta sobre peças, códigos ou compatibilidade de motocicletas. Seja preciso e forneça códigos de peças quando disponíveis. Se não encontrar informações específicas, informe ao usuário."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        352,
+        288
+      ],
+      "id": "6af7251f-09bb-465e-aa64-094ce54078b7",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Data').item.json.body.session_id }}",
+        "contextWindowLength": -1
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        496,
+        464
+      ],
+      "id": "e45752de-1297-46e6-b734-b1c38f1cb091",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        464
+      ],
+      "id": "9dac6b68-446a-49a1-b4ca-083e431f2ab2",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQgXKraRyRXnurrA",
+          "name": "OpenAi account - pap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "agents",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.body.agent_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        160,
+        288
+      ],
+      "id": "fde8c530-ce68-40ae-a502-36a16a38c86d",
+      "name": "getAgentConfigs",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-ada-002",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        736
+      ],
+      "id": "461d1815-d238-4227-99c4-69c26dd7fbfb",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQgXKraRyRXnurrA",
+          "name": "OpenAi account - pap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "response",
+              "value": "={{ $json.output }}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $('Extract Data').item.json.body.session_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "660f8632-f066-4a48-a782-42d85ef601f3",
+      "name": "Format Response1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        864,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "tableName": {
+          "__rl": true,
+          "value": "knowledge_documents",
+          "mode": "list",
+          "cachedResultName": "knowledge_documents"
+        },
+        "options": {
+          "queryName": "match_documents",
+          "metadataFilterMode": "manual",
+          "metadataFilterField": [
+            {
+              "key": "agent_id",
+              "value": "={{ $('Extract Data').item.json.agent_id }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        608
+      ],
+      "id": "59893f69-3264-4c5e-86da-57358642c7ea",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        800,
+        608
+      ],
+      "id": "b423c778-a2f4-4ff5-a0fa-466e89df2818",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQgXKraRyRXnurrA",
+          "name": "OpenAi account - pap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topK": 5
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        624,
+        448
+      ],
+      "id": "eb19cbef-5492-4286-b671-3c191f3e0842",
+      "name": "SupabaseVectorStore"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "gsouzabd.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+            "content-length": "2428",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "en-US,en;q=0.9,pt;q=0.8",
+            "authorization": "Basic cGFwcmljYTpiZGhocWFmeXF5YW1jZWprdWZ4Zg==",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "187.19.243.115",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "BR",
+            "cf-ray": "993c3bccb33b0675-JDO",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "origin": "http://localhost:5173",
+            "priority": "u=1, i",
+            "referer": "http://localhost:5173/",
+            "sec-ch-ua": "\"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "187.19.243.115, 172.70.193.135",
+            "x-forwarded-host": "gsouzabd.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-87-bcb9f59f7-7xp2f",
+            "x-is-trusted": "yes",
+            "x-real-ip": "187.19.243.115"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "agent_id": "e5a4ea22-d5c2-4ef7-9ad0-312eeb6bba95",
+            "session_id": "534b92a6-2958-4155-910a-c6f755d95492",
+            "message": " Interruptor de Freio Dianteiro",
+            "history": [
+              {
+                "role": "user",
+                "content": "oi"
+              },
+              {
+                "role": "user",
+                "content": "po"
+              },
+              {
+                "role": "user",
+                "content": "oi"
+              },
+              {
+                "role": "user",
+                "content": "OI"
+              },
+              {
+                "role": "user",
+                "content": "oi"
+              },
+              {
+                "role": "user",
+                "content": "oi"
+              },
+              {
+                "role": "assistant",
+                "content": "Olá! Parece que você está dizendo \"oi\" várias vezes. Quer conversar sobre algo específico ou precisa de ajuda com alguma coisa?"
+              },
+              {
+                "role": "user",
+                "content": "bico injetor para honda?"
+              },
+              {
+                "role": "assistant",
+                "content": "Você está procurando bico injetor para Honda. Poderia me informar o modelo e o ano do seu Honda para que eu possa procurar a peça correta para você?"
+              },
+              {
+                "role": "user",
+                "content": "cg 125"
+              },
+              {
+                "role": "assistant",
+                "content": "A Honda CG 125 é uma motocicleta com motor carburado, o que significa que ela não possui bico injetor, pois utiliza um carburador para a alimentação de combustível. Se você está procurando alguma peça para alimentação de combustível da sua CG 125, provavelmente estará buscando um carburador ou componentes relacionados. Posso ajudar a encontrar informações ou peças específicas para o carburador da sua CG 125?"
+              },
+              {
+                "role": "user",
+                "content": "bico injetor"
+              },
+              {
+                "role": "assistant",
+                "content": "A Honda CG 125, na sua configuração tradicional, não possui bico injetor, pois utiliza carburador em vez de injeção eletrônica de combustível. Se você está procurando por bico injetor, isso pode ser para uma Honda com sistema de injeção eletrônica, que geralmente são modelos mais modernos.\n\nSe você tem uma CG 125 que foi modificada para injeção eletrônica ou está procurando bico injetor para outro modelo de Honda, poderia me informar o modelo exato e o ano? Assim, posso ajudar a encontrar a peça correta."
+              },
+              {
+                "role": "user",
+                "content": "bico injetor para honda? cg 125"
+              },
+              {
+                "role": "assistant",
+                "content": "A Honda CG 125 originalmente utiliza carburador e não bico injetor, pois não é equipada com sistema de injeção eletrônica de combustível. Portanto, não existe bico injetor para esse modelo em sua configuração original. Se você estiver procurando peças relacionadas ao sistema de alimentação de combustível para a Honda CG 125, o foco geralmente é em carburadores e seus componentes. Posso ajudar a encontrar outras peças ou informações técnicas para sua CG 125?"
+              }
+            ]
+          },
+          "webhookUrl": "https://gsouzabd.app.n8n.cloud/webhook/mag-helper-agent",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Extract Data": {
+      "main": [
+        [
+          {
+            "node": "getAgentConfigs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getAgentConfigs": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "SupabaseVectorStore",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SupabaseVectorStore",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SupabaseVectorStore": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f8a7da1e-4ca5-4d02-a936-ae5d274e5a79",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "07ff2d9cfd91f7cdf9966883f8bc777072e99b72e5d3da8541efdae05b3be261"
+  },
+  "id": "YjZdBWaolELUKRId",
+  "tags": []
+}

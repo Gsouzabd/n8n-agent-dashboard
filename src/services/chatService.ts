@@ -1,0 +1,231 @@
+import { supabase } from '@/lib/supabase'
+import { ChatMessage, ChatSession, Agent } from '@/types'
+
+export const chatService = {
+  /**
+   * Get or create a chat session for an agent
+   */
+  async getOrCreateSession(agentId: string, userId: string): Promise<string> {
+    // Try to find existing session
+    const { data: existingSessions, error: fetchError } = await supabase
+      .from('chat_sessions')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+
+    if (fetchError) {
+      console.error('Error fetching session:', fetchError)
+      throw new Error('Failed to fetch chat session')
+    }
+
+    if (existingSessions && existingSessions.length > 0) {
+      // Update the session timestamp
+      await supabase
+        .from('chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', existingSessions[0].id)
+
+      return existingSessions[0].id
+    }
+
+    // Create new session
+    const { data: newSession, error: createError } = await supabase
+      .from('chat_sessions')
+      .insert({
+        agent_id: agentId,
+        user_id: userId,
+      })
+      .select('id')
+      .single()
+
+    if (createError || !newSession) {
+      console.error('Error creating session:', createError)
+      throw new Error('Failed to create chat session')
+    }
+
+    return newSession.id
+  },
+
+  /**
+   * Create a new chat session (always creates, never reuses)
+   */
+  async createNewSession(agentId: string, userId: string): Promise<string> {
+    const { data: newSession, error: createError } = await supabase
+      .from('chat_sessions')
+      .insert({
+        agent_id: agentId,
+        user_id: userId,
+      })
+      .select('id')
+      .single()
+
+    if (createError || !newSession) {
+      console.error('Error creating new session:', createError)
+      throw new Error('Failed to create new chat session')
+    }
+
+    return newSession.id
+  },
+
+  /**
+   * Get messages for a session
+   */
+  async getMessages(sessionId: string): Promise<ChatMessage[]> {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching messages:', error)
+      throw new Error('Failed to fetch messages')
+    }
+
+    return data || []
+  },
+
+  /**
+   * Save a message to the database
+   */
+  async saveMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ): Promise<ChatMessage> {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        session_id: sessionId,
+        role,
+        content,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Error saving message:', error)
+      throw new Error('Failed to save message')
+    }
+
+    return data
+  },
+
+  /**
+   * Send message to n8n webhook and get response
+   */
+  async sendMessageToN8n(
+    agent: Agent,
+    sessionId: string,
+    message: string,
+    history: ChatMessage[]
+  ): Promise<string> {
+    if (!agent.webhook_url) {
+      throw new Error('Agent webhook not configured')
+    }
+
+    // Prepare history in simple format
+    const formattedHistory = history.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+    }))
+
+    const payload = {
+      agent_id: agent.id,
+      session_id: sessionId,
+      message: message,
+      history: formattedHistory,
+    }
+
+    // Prepare headers
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    // Add basic auth if configured
+    if (agent.auth_type === 'basic' && agent.auth_username && agent.auth_password) {
+      const credentials = btoa(`${agent.auth_username}:${agent.auth_password}`)
+      headers['Authorization'] = `Basic ${credentials}`
+    }
+
+    try {
+      const response = await fetch(agent.webhook_url, {
+        method: agent.webhook_method || 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('n8n webhook error:', errorText)
+        throw new Error(`Webhook returned ${response.status}: ${errorText}`)
+      }
+
+      const data = await response.json()
+
+      // Extract response from n8n
+      if (data.response) {
+        return data.response
+      } else if (typeof data === 'string') {
+        return data
+      } else {
+        console.warn('Unexpected response format:', data)
+        return JSON.stringify(data)
+      }
+    } catch (error) {
+      console.error('Error calling webhook:', error)
+      throw new Error('Failed to get response from AI agent')
+    }
+  },
+
+  /**
+   * Get all sessions for a user
+   */
+  async getUserSessions(userId: string): Promise<ChatSession[]> {
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching sessions:', error)
+      throw new Error('Failed to fetch sessions')
+    }
+
+    return data || []
+  },
+
+  /**
+   * Delete all messages from a session (but keep the session)
+   */
+  async clearSessionMessages(sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('session_id', sessionId)
+
+    if (error) {
+      console.error('Error clearing messages:', error)
+      throw new Error('Failed to clear messages')
+    }
+  },
+
+  /**
+   * Delete a session and all its messages
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_sessions')
+      .delete()
+      .eq('id', sessionId)
+
+    if (error) {
+      console.error('Error deleting session:', error)
+      throw new Error('Failed to delete session')
+    }
+  },
+}
+
