@@ -256,7 +256,7 @@ npm run build
 ### Backend (Supabase)
 ```bash
 # Edge Functions
-supabase functions deploy --project-ref bdhhqafyqyamcejkufxf
+supabase functions deploy --project-ref ...
 
 # Migrations
 supabase db push
