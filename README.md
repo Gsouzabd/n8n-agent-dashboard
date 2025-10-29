@@ -1,13 +1,13 @@
-# Dashboard de Agentes IA com n8n
+# Dashboard de Agentes IA Venturize
 
-Sistema completo para criação e gestão de agentes de IA com base de conhecimento vetorizada, integrado com n8n.
+Sistema completo para criação e gestão de agentes de IA com base de conhecimento vetorizada.
 
 ## 🚀 Características
 
 - **Gestão de Agentes**: Crie e gerencie múltiplos agentes de IA
 - **Base de Conhecimento Vetorizada**: Upload e processamento de documentos com pgvector
 - **Busca Semântica**: Encontre informações relevantes na base de conhecimento
-- **Integração n8n**: Webhook configurável para integração com workflows n8n
+- **Integração via Webhooks**: Sistema configurável para integração com workflows externos
 - **Autenticação Segura**: Sistema de autenticação com Supabase Auth
 - **Interface Moderna**: UI construída com React, TailwindCSS e componentes modernos
 

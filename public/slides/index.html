@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Agentes IA - Apresentação</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Navigation Controls -->
+    <div class="nav-controls">
+        <button class="nav-btn" id="prevBtn" title="Anterior (←)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
+        <span class="slide-counter" id="slideCounter">1 / 12</span>
+        <button class="nav-btn" id="nextBtn" title="Próximo (→)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Slides Container -->
+    <div class="slides-container" id="slidesContainer">
+        
+        <!-- Slide 1: Capa -->
+        <section class="slide active" data-slide="1">
+            <div class="slide-content centered">
+                <div class="logo-container glow-effect">
+                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        <path d="M9 10h.01M15 10h.01M9 14h6"></path>
+                    </svg>
+                </div>
+                <h1 class="neon-text slide-title">Venturize Agents Workspace</h1>
+                <p class="subtitle">Plataforma Completa de IA para Automatização Inteligente de Atendimento</p>
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <span class="stat-number neon-orange" data-count="40">0</span>
+                        <span class="stat-label">x mais barato</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number neon-orange" data-count="97">0</span>
+                        <span class="stat-label">R$/mês</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number neon-orange" data-count="5">0</span>
+                        <span class="stat-label">minutos setup</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 2: O Problema -->
+        <section class="slide" data-slide="2">
+            <div class="slide-content">
+                <h2 class="slide-title">O Problema: Atendimento Tradicional</h2>
+                <div class="highlight-box">
+                    <h3 class="neon-red">R$ 1,2 TRILHÕES/ano</h3>
+                    <p>perdidos com atendimento ineficiente no Brasil (fonte: McKinsey 2024)</p>
+                </div>
+                <div class="problems-grid">
+                    <div class="problem-card">
+                        <div class="problem-icon">📊</div>
+                        <h4>70-80%</h4>
+                        <p><strong>Perguntas Repetitivas</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">FAQ, horários, preços, rastreamento</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">⏰</div>
+                        <h4>4-8 horas</h4>
+                        <p><strong>Tempo de Resposta</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Clientes esperam resposta imediata</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">💰</div>
+                        <h4>R$ 2.500-4.000</h4>
+                        <p><strong>Custo/Atendente/Mês</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Salário + encargos + treinamento</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">🕐</div>
+                        <h4>Apenas 8h-18h</h4>
+                        <p><strong>Horário Limitado</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">67% das vendas ocorrem fora do horário</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">😤</div>
+                        <h4>56% Insatisfação</h4>
+                        <p><strong>Clientes Frustrados</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Tempo de espera é maior reclamação</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">📉</div>
+                        <h4>45% Abandono</h4>
+                        <p><strong>Taxa de Desistência</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Clientes desistem após 5 min esperando</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">🔄</div>
+                        <h4>120% Turnover</h4>
+                        <p><strong>Rotatividade Alta</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Treinamento constante e caro</p>
+                    </div>
+                    <div class="problem-card">
+                        <div class="problem-icon">🌍</div>
+                        <h4>Zero Escalabilidade</h4>
+                        <p><strong>Crescimento Limitado</strong></p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Contratar = tempo + custo linear</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 3: Nossa Solução -->
+        <section class="slide" data-slide="3">
+            <div class="slide-content">
+                <h2 class="slide-title">Venturize Workspace: Transformação Total</h2>
+                <div class="comparison-container">
+                    <div class="comparison-side before">
+                        <h3 class="neon-red">⚠️ ATENDIMENTO TRADICIONAL</h3>
+                        <div class="comparison-item">
+                            <span class="icon">⏱️</span>
+                            <div>
+                                <strong>2-8 horas resposta</strong>
+                                <small style="display:block; color: #999;">Cliente espera e perde interesse</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">👤</span>
+                            <div>
+                                <strong>44h/semana (1 pessoa)</strong>
+                                <small style="display:block; color: #999;">Limitado a horário comercial</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">💸</span>
+                            <div>
+                                <strong>R$ 2.500-4.000/mês</strong>
+                                <small style="display:block; color: #999;">Por atendente + treinamento</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">📉</span>
+                            <div>
+                                <strong>~50-100 msgs/dia</strong>
+                                <small style="display:block; color: #999;">Capacidade limitada</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">😓</span>
+                            <div>
+                                <strong>Erros humanos</strong>
+                                <small style="display:block; color: #999;">Informações inconsistentes</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">📚</span>
+                            <div>
+                                <strong>Treinamento constante</strong>
+                                <small style="display:block; color: #999;">2-4 semanas onboarding</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="comparison-arrow">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                    <div class="comparison-side after">
+                        <h3 class="neon-green">✨ COM VENTURIZE WORKSPACE</h3>
+                        <div class="comparison-item">
+                            <span class="icon">⚡</span>
+                            <div>
+                                <strong>2-5 segundos resposta</strong>
+                                <small style="display:block; color: #10b981;">Resposta instantânea sempre</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">🌙</span>
+                            <div>
+                                <strong>168h/semana (24/7/365)</strong>
+                                <small style="display:block; color: #10b981;">Nunca fecha, nunca cansa</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">💰</span>
+                            <div>
+                                <strong>R$ 97/mês (26x mais barato)</strong>
+                                <small style="display:block; color: #10b981;">Preço fixo, sem surpresas</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">🚀</span>
+                            <div>
+                                <strong>50.000 msgs/mês (500x mais)</strong>
+                                <small style="display:block; color: #10b981;">Escala ilimitada</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">✅</span>
+                            <div>
+                                <strong>100% precisão</strong>
+                                <small style="display:block; color: #10b981;">Sempre consistente e atualizado</small>
+                            </div>
+                        </div>
+                        <div class="comparison-item">
+                            <span class="icon">📖</span>
+                            <div>
+                                <strong>Setup em 5 minutos</strong>
+                                <small style="display:block; color: #10b981;">Upload docs e pronto!</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-box" style="margin-top: 2rem;">
+                    <h3 class="neon-orange">💡 Resultado: 96% de redução de custos + 300% mais satisfação do cliente</h3>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 4: Arquitetura & Features -->
+        <section class="slide" data-slide="4">
+            <div class="slide-content">
+                <h2 class="slide-title">Arquitetura & Features do Workspace</h2>
+                <div class="architecture-diagram">
+                    <div class="arch-layer">
+                        <h4 class="neon-blue">🌐 Multi-Canal (Omnichannel)</h4>
+                        <div class="arch-items">
+                            <div class="arch-box">WhatsApp Business</div>
+                            <div class="arch-box">Telegram Bot</div>
+                            <div class="arch-box">Widget Web</div>
+                            <div class="arch-box">Slack</div>
+                            <div class="arch-box">Discord</div>
+                            <div class="arch-box">Email</div>
+                        </div>
+                        <p style="text-align: center; margin-top: 1rem; font-size: 0.9rem; color: #a0a0a0;">Um único agente responde em todos os canais</p>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+                    <div class="arch-layer">
+                        <h4 class="neon-orange">🤖 Camada de Inteligência (IA Avançada)</h4>
+                        <div class="arch-items">
+                            <div class="arch-box highlight">API Gateway Segura</div>
+                            <div class="arch-box highlight">Agente IA Contextual</div>
+                            <div class="arch-box highlight">RAG Engine (Retrieval)</div>
+                            <div class="arch-box highlight">NLP Avançado</div>
+                            <div class="arch-box highlight">Sentiment Analysis</div>
+                        </div>
+                        <p style="text-align: center; margin-top: 1rem; font-size: 0.9rem; color: #a0a0a0;">Processamento em tempo real com contexto completo</p>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+                    <div class="arch-layer">
+                        <h4 class="neon-green">💾 Base de Conhecimento (Vectorizada)</h4>
+                        <div class="arch-items">
+                            <div class="arch-box">OpenAI GPT-4 Turbo</div>
+                            <div class="arch-box">Supabase Vector DB</div>
+                            <div class="arch-box">PostgreSQL + pgvector</div>
+                            <div class="arch-box">Embeddings Semânticos</div>
+                            <div class="arch-box">Cache Inteligente</div>
+                        </div>
+                        <p style="text-align: center; margin-top: 1rem; font-size: 0.9rem; color: #a0a0a0;">Busca semântica com 95%+ de precisão</p>
+                    </div>
+                </div>
+                <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                    <div style="text-align: center; padding: 1rem; background: rgba(255, 107, 0, 0.1); border-radius: 12px;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚡</div>
+                        <strong style="color: #ff6b00;">99.9% Uptime</strong>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.3rem;">Infraestrutura redundante</p>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: rgba(0, 212, 255, 0.1); border-radius: 12px;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔒</div>
+                        <strong style="color: #00d4ff;">LGPD Compliant</strong>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.3rem;">Criptografia end-to-end</p>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 12px;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                        <strong style="color: #10b981;">Analytics Real-time</strong>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.3rem;">Dashboard executivo</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 5: Como Funciona -->
+        <section class="slide" data-slide="5">
+            <div class="slide-content">
+                <h2 class="slide-title">Como Funciona (3 Passos)</h2>
+                <div class="steps-container">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Criar Agente</h3>
+                            <p>Nome, descrição e personalidade</p>
+                            <span class="step-time">2 minutos</span>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Adicionar Conhecimento</h3>
+                            <p>Upload de documentos (PDF, DOCX)</p>
+                            <span class="step-time">2 minutos</span>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Conectar Canal</h3>
+                            <p>WhatsApp, Telegram, Web</p>
+                            <span class="step-time">1 minuto</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-box">
+                    <h3 class="neon-orange">🚀 Resultado: Agente funcionando 24/7</h3>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: Cases de Uso -->
+        <section class="slide" data-slide="6">
+            <div class="slide-content">
+                <h2 class="slide-title">Cases de Uso Reais</h2>
+                <div class="cases-grid">
+                    <div class="case-card">
+                        <h3>🛍️ E-commerce</h3>
+                        <p class="case-desc">Loja de Roupas Fashion</p>
+                        <div class="case-stats">
+                            <div class="case-stat">
+                                <span class="label">Economia</span>
+                                <span class="value neon-green">R$ 2.403/mês</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">Aumento vendas</span>
+                                <span class="value neon-green">+56%</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">ROI</span>
+                                <span class="value neon-orange">1.772%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="case-card">
+                        <h3>💻 SaaS B2B</h3>
+                        <p class="case-desc">Software de Gestão</p>
+                        <div class="case-stats">
+                            <div class="case-stat">
+                                <span class="label">Economia</span>
+                                <span class="value neon-green">R$ 94k/ano</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">Redução churn</span>
+                                <span class="value neon-green">-62%</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">NPS</span>
+                                <span class="value neon-orange">35 → 68</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="case-card">
+                        <h3>🏢 Agência</h3>
+                        <p class="case-desc">White-Label</p>
+                        <div class="case-stats">
+                            <div class="case-stat">
+                                <span class="label">Receita nova</span>
+                                <span class="value neon-green">R$ 119k/ano</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">Margem</span>
+                                <span class="value neon-green">80%</span>
+                            </div>
+                            <div class="case-stat">
+                                <span class="label">Crescimento MRR</span>
+                                <span class="value neon-orange">150%/ano</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 7: Planos e Preços -->
+        <section class="slide" data-slide="7">
+            <div class="slide-content">
+                <h2 class="slide-title">Planos e Preços</h2>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h3>FREE</h3>
+                        <div class="price">R$ 0<span>/mês</span></div>
+                        <ul class="features-list">
+                            <li>✅ 3 agentes</li>
+                            <li>✅ 1k msg/mês</li>
+                            <li>✅ 100 documentos</li>
+                            <li>❌ Branding</li>
+                            <li>❌ API</li>
+                        </ul>
+                        <div class="target">Freelancers, Estudantes</div>
+                    </div>
+                    <div class="pricing-card popular">
+                        <div class="popular-badge">MAIS POPULAR</div>
+                        <h3 class="neon-orange">PRO</h3>
+                        <div class="price neon-orange">R$ 97<span>/mês</span></div>
+                        <ul class="features-list">
+                            <li>✅ 20 agentes</li>
+                            <li>✅ 50k msg/mês</li>
+                            <li>✅ 10k documentos</li>
+                            <li>✅ Custom branding</li>
+                            <li>✅ API completa</li>
+                        </ul>
+                        <div class="target">PMEs, Startups, E-commerces</div>
+                    </div>
+                    <div class="pricing-card">
+                        <h3>ENTERPRISE</h3>
+                        <div class="price">R$ 2.500+<span>/mês</span></div>
+                        <ul class="features-list">
+                            <li>✅ Ilimitado</li>
+                            <li>✅ Ilimitado</li>
+                            <li>✅ Ilimitado</li>
+                            <li>✅ White-label</li>
+                            <li>✅ API dedicada</li>
+                        </ul>
+                        <div class="target">Corporações, Agências</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 8: Diferenciação Competitiva Detalhada -->
+        <section class="slide" data-slide="8">
+            <div class="slide-content">
+                <h2 class="slide-title">Por Que Venturize Workspace Vence a Concorrência</h2>
+                <div class="competition-grid">
+                    <div class="competitor-card">
+                        <h3>🆚 Intercom</h3>
+                        <div class="comparison-list">
+                            <div class="comp-item positive">✅ <strong>3.1x mais barato</strong> (economia de R$ 2.291/ano)</div>
+                            <div class="comp-item positive">✅ <strong>Interface 100% PT-BR</strong> nativa (não traduzida)</div>
+                            <div class="comp-item positive">✅ <strong>White-label completo</strong> no PRO</div>
+                            <div class="comp-item positive">✅ <strong>RAG nativo</strong> (Intercom adiciona custo)</div>
+                            <div class="comp-item positive">✅ <strong>Suporte BR</strong> em horário local</div>
+                            <div class="comp-item neutral">⚠️ Menos integrações enterprise (ainda)</div>
+                        </div>
+                        <div class="competitor-price"><strong>$299/mês</strong> (R$ 1.600) <span class="neon-red">VS</span> <strong class="neon-green">R$ 97/mês</strong></div>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.5rem; text-align: center;">Ideal para: Grandes empresas com orçamento alto</p>
+                    </div>
+                    <div class="competitor-card">
+                        <h3>🆚 ManyChat</h3>
+                        <div class="comparison-list">
+                            <div class="comp-item positive">✅ <strong>IA GPT-4 avançada</strong> (ManyChat usa GPT-3.5)</div>
+                            <div class="comp-item positive">✅ <strong>RAG Engine</strong> para respostas contextuais precisas</div>
+                            <div class="comp-item positive">✅ <strong>Múltiplos canais</strong> (WhatsApp + Web + Telegram + Slack)</div>
+                            <div class="comp-item positive">✅ <strong>Base de conhecimento ilimitada</strong></div>
+                            <div class="comp-item positive">✅ <strong>Analytics avançado</strong> com dashboard executivo</div>
+                            <div class="comp-item neutral">⚠️ Sem visual flow builder (roadmap Q2 2025)</div>
+                        </div>
+                        <div class="competitor-price"><strong>$15/mês</strong> (básico) <span class="neon-red">VS</span> <strong class="neon-green">R$ 97/mês</strong> (completo)</div>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.5rem; text-align: center;">Ideal para: Marketing automation sem IA avançada</p>
+                    </div>
+                    <div class="competitor-card">
+                        <h3>🆚 Crisp / Zendesk</h3>
+                        <div class="comparison-list">
+                            <div class="comp-item positive">✅ <strong>RAG nativo e otimizado</strong> desde o início</div>
+                            <div class="comp-item positive">✅ <strong>6 canais integrados</strong> vs 3-4 deles</div>
+                            <div class="comp-item positive">✅ <strong>Analytics com IA</strong> (insights automáticos)</div>
+                            <div class="comp-item positive">✅ <strong>Setup 10x mais rápido</strong> (5min vs 1h)</div>
+                            <div class="comp-item positive">✅ <strong>Custo total 40% menor</strong></div>
+                            <div class="comp-item positive">✅ <strong>UI moderna e intuitiva</strong></div>
+                        </div>
+                        <div class="competitor-price"><strong>€25-49/mês</strong> (R$ 140-270) <span class="neon-red">VS</span> <strong class="neon-green">R$ 97/mês</strong></div>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.5rem; text-align: center;">Ideal para: Atendimento tradicional sem foco em IA</p>
+                    </div>
+                    <div class="competitor-card">
+                        <h3>🆚 Deco Chat</h3>
+                        <div class="comparison-list">
+                            <div class="comp-item positive">✅ <strong>Foco e-commerce</strong> (otimizado para conversão)</div>
+                            <div class="comp-item positive">✅ <strong>Performance extrema</strong> (Fresh/Deno, edge-first)</div>
+                            <div class="comp-item positive">✅ <strong>Solução 100% brasileira</strong> (Deco.cx ecosystem)</div>
+                            <div class="comp-item positive">✅ <strong>Integrações e-commerce</strong> (VTEX, Shopify nativas)</div>
+                            <div class="comp-item neutral">⚠️ <strong>IA limitada</strong> (sem RAG, regras básicas)</div>
+                            <div class="comp-item neutral">⚠️ <strong>Apenas web chat</strong> (sem multi-canal nativo)</div>
+                        </div>
+                        <div class="competitor-price"><strong>Preço variável</strong> (enterprise) <span class="neon-red">VS</span> <strong class="neon-green">R$ 97/mês</strong> (fixo)</div>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 0.5rem; text-align: center;">Ideal para: E-commerce grande porte com foco em vendas diretas</p>
+                    </div>
+                </div>
+                <div class="position-box" style="margin-top: 2rem;">
+                    <h3 class="neon-orange">🎯 Venturize Workspace: O Ponto Ideal</h3>
+                    <p style="margin-top: 1rem; font-size: 1.1rem;">✅ Preço acessível + ✅ IA de ponta + ✅ Interface brasileira + ✅ Suporte local + ✅ White-label</p>
+                    <p style="margin-top: 0.5rem; color: #10b981; font-weight: 600;">Melhor custo-benefício do mercado brasileiro para IA conversacional</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 9: Roadmap -->
+        <section class="slide" data-slide="9">
+            <div class="slide-content">
+                <h2 class="slide-title">Roadmap 12 Meses</h2>
+                <div class="roadmap-container">
+                    <div class="roadmap-phase">
+                        <h3 class="phase-title neon-blue">Fase 1: Fundação</h3>
+                        <p class="phase-time">Mês 1-4</p>
+                        <ul class="phase-features">
+                            <li>Sistema de Temas</li>
+                            <li>Multi-tenancy</li>
+                            <li>Billing (Stripe)</li>
+                            <li>Templates de Agentes</li>
+                        </ul>
+                    </div>
+                    <div class="roadmap-arrow">→</div>
+                    <div class="roadmap-phase">
+                        <h3 class="phase-title neon-orange">Fase 2: Integrações</h3>
+                        <p class="phase-time">Mês 5-8</p>
+                        <ul class="phase-features">
+                            <li>WhatsApp Business</li>
+                            <li>Telegram Bot</li>
+                            <li>Slack Integration</li>
+                            <li>Analytics Dashboard</li>
+                        </ul>
+                    </div>
+                    <div class="roadmap-arrow">→</div>
+                    <div class="roadmap-phase">
+                        <h3 class="phase-title neon-green">Fase 3: Escala</h3>
+                        <p class="phase-time">Mês 9-12</p>
+                        <ul class="phase-features">
+                            <li>API Pública</li>
+                            <li>Onboarding Interativo</li>
+                            <li>Mobile App (beta)</li>
+                            <li>Expansão LATAM</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 10: Oferta Early Adopter -->
+        <section class="slide" data-slide="10">
+            <div class="slide-content centered">
+                <div class="offer-banner">
+                    <h2 class="offer-title neon-orange">🚀 PROGRAMA EARLY ADOPTER</h2>
+                    <p class="offer-subtitle">Seja um dos primeiros 100 clientes!</p>
+                </div>
+                <div class="offer-benefits">
+                    <div class="benefit-item">
+                        <div class="benefit-icon">🎁</div>
+                        <h4>50% OFF</h4>
+                        <p>Nos primeiros 6 meses</p>
+                        <span class="benefit-value">R$ 48,50/mês</span>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">🎓</div>
+                        <h4>Setup Gratuito</h4>
+                        <p>Sessão de 1h com especialista</p>
+                        <span class="benefit-value">R$ 300 grátis</span>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">⚡</div>
+                        <h4>Suporte Prioritário</h4>
+                        <p>Resposta em até 4h</p>
+                        <span class="benefit-value">Vitalício</span>
+                    </div>
+                </div>
+                <div class="offer-urgency">
+                    <div class="vagas-bar">
+                        <div class="vagas-fill" style="width: 73%"></div>
+                    </div>
+                    <p class="vagas-text">⏰ <strong>73/100</strong> vagas disponíveis</p>
+                    <p class="validity">Válido até: <span class="neon-orange">31/03/2025</span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 11: Próximos Passos -->
+        <section class="slide" data-slide="11">
+            <div class="slide-content centered">
+                <h2 class="slide-title">Próximos Passos</h2>
+                <div class="steps-flow">
+                    <div class="flow-step">
+                        <div class="flow-number">1</div>
+                        <h3>Agendar Demo</h3>
+                        <p>30 minutos ao vivo</p>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-step">
+                        <div class="flow-number">2</div>
+                        <h3>Trial Grátis</h3>
+                        <p>14 dias do Plano Pro</p>
+                    </div>
+                    <div class="flow-arrow">→</div>
+                    <div class="flow-step">
+                        <div class="flow-number">3</div>
+                        <h3>Go Live!</h3>
+                        <p>Agente funcionando</p>
+                    </div>
+                </div>
+                <div class="cta-buttons">
+                    <a href="#" class="cta-button primary glow-effect">
+                        🎁 Trial Grátis 14 dias
+                    </a>
+                    <a href="#" class="cta-button secondary">
+                        📞 Agendar Demo
+                    </a>
+                </div>
+                <div class="guarantees-mini">
+                    <span>✅ Sem cartão de crédito</span>
+                    <span>✅ 30 dias garantia</span>
+                    <span>✅ Cancele quando quiser</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 12: Contato -->
+        <section class="slide" data-slide="12">
+            <div class="slide-content centered">
+                <h2 class="slide-title">Entre em Contato</h2>
+                <div class="contact-grid">
+                    <div class="contact-item">
+                        <div class="contact-icon">📱</div>
+                        <h4>WhatsApp</h4>
+                        <p>+55 11 99999-9999</p>
+                        <span class="contact-detail">Responde em até 1h</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">📧</div>
+                        <h4>Email</h4>
+                        <p>vendas@venturize-agents.com</p>
+                        <span class="contact-detail">comercial@venturize-agents.com</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">🌐</div>
+                        <h4>Website</h4>
+                        <p>venturize-agents.com</p>
+                        <span class="contact-detail">calendly.com/venturize-agents-demo</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">💼</div>
+                        <h4>LinkedIn</h4>
+                        <p>linkedin.com/company/venturize-agents</p>
+                        <span class="contact-detail">Siga-nos para novidades</span>
+                    </div>
+                </div>
+                <div class="qr-placeholder">
+                    <div class="qr-box">
+                        <svg width="120" height="120" viewBox="0 0 100 100">
+                            <rect x="0" y="0" width="20" height="20" fill="currentColor"/>
+                            <rect x="30" y="0" width="20" height="20" fill="currentColor"/>
+                            <rect x="60" y="0" width="20" height="20" fill="currentColor"/>
+                            <rect x="0" y="30" width="20" height="20" fill="currentColor"/>
+                            <rect x="60" y="30" width="20" height="20" fill="currentColor"/>
+                            <rect x="0" y="60" width="20" height="20" fill="currentColor"/>
+                            <rect x="30" y="60" width="20" height="20" fill="currentColor"/>
+                            <rect x="60" y="60" width="20" height="20" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <p class="qr-label">Escaneie para acessar o site</p>
+                </div>
+                <div class="final-message">
+                    <h3 class="neon-orange">Transforme seu atendimento hoje! 🚀</h3>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

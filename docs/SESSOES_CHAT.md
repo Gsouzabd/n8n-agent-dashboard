@@ -333,3 +333,6 @@ WHERE id IN (
 **Data:** 27/10/2025  
 **Versão:** 2.0 (com nova sessão ao limpar)
 
+
+
+

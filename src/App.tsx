@@ -6,12 +6,14 @@ import { Register } from './pages/Register'
 import { AgentList } from './pages/AgentList'
 import { AgentForm } from './pages/AgentForm'
 import { KnowledgeBase } from './pages/KnowledgeBase'
+import LandingPage from './pages/LandingPage'
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route

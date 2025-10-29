@@ -65,3 +65,6 @@ SELECT
 FROM auth.users
 WHERE email = 'admin@magentron.com.br';
 
+
+
+
