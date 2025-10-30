@@ -634,26 +634,6 @@ CREATE TABLE api_keys (
 
 ---
 
-## 📚 Recursos Adicionais
-
-### Documentação para Criar
-1. **Developer Guide**: Como contribuir ao projeto
-2. **API Documentation**: Swagger completo
-3. **User Manual**: Guia para usuários finais
-4. **Admin Guide**: Gerenciar organizações
-5. **Integration Tutorials**: Como criar novas integrações
-
-### Vídeos Sugeridos
-1. Tour da plataforma (5min)
-2. Criar primeiro agente (3min)
-3. Conectar WhatsApp (7min)
-4. Analytics avançado (5min)
-5. API quickstart (4min)
-
----
-
-## 🎓 Aprendizados de Projetos Similares
-
 **Inspirações:**
 - **Crisp**: Onboarding excelente
 - **Intercom**: Marketplace de apps

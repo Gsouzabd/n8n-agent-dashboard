@@ -1,13 +1,22 @@
 import { supabase } from '@/lib/supabase'
 import { KnowledgeDocument } from '@/types'
 
+interface DocumentContext {
+  document_description: string
+  usage_context: string
+  usage_instructions: string
+  dialogue_examples: Array<{ user: string; ai: string }>
+  tags: string[]
+}
+
 export const documentService = {
   /**
    * Upload a file to Supabase Storage and create document record
    */
   async uploadDocument(
     file: File,
-    knowledgeBaseId: string
+    knowledgeBaseId: string,
+    context?: DocumentContext
   ): Promise<{ documentId: string; filePath: string }> {
     try {
       // Generate unique file path
@@ -28,22 +37,37 @@ export const documentService = {
         throw new Error('Failed to upload file: ' + uploadError.message)
       }
 
-      // Create document record
+      // Create document record with context
+      const documentData: any = {
+        knowledge_base_id: knowledgeBaseId,
+        content: '', // Will be filled by Edge Function
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        file_path: filePath,
+        processing_status: 'pending',
+        metadata: {
+          originalName: file.name,
+          uploadedAt: new Date().toISOString(),
+        },
+      }
+
+      // Add context if provided
+      if (context) {
+        documentData.document_description = context.document_description
+        documentData.usage_context = context.usage_context
+        documentData.usage_instructions = context.usage_instructions
+        documentData.dialogue_examples = context.dialogue_examples
+        documentData.tags = context.tags
+        documentData.prompt_metadata = {
+          has_context: true,
+          context_added_at: new Date().toISOString(),
+        }
+      }
+
       const { data: document, error: insertError } = await supabase
         .from('knowledge_documents')
-        .insert({
-          knowledge_base_id: knowledgeBaseId,
-          content: '', // Will be filled by Edge Function
-          file_name: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          file_path: filePath,
-          processing_status: 'pending',
-          metadata: {
-            originalName: file.name,
-            uploadedAt: new Date().toISOString(),
-          },
-        })
+        .insert(documentData)
         .select()
         .single()
 

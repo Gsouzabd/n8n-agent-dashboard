@@ -3,6 +3,143 @@ import { ChatMessage, ChatSession, Agent } from '@/types'
 
 export const chatService = {
   /**
+   * Get or create a chat session by external_session_id (anonymous iframe)
+   */
+  async getOrCreateSessionByExternal(agentId: string, externalSessionId: string): Promise<string> {
+    // Try to find existing session for this external id
+    const { data: existing, error: fetchError } = await supabase
+      .from('chat_sessions')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('external_session_id', externalSessionId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('Error fetching external session:', fetchError)
+      throw new Error('Failed to fetch chat session')
+    }
+
+    if (existing?.id) {
+      // bump updated_at
+      await supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', existing.id)
+      return existing.id
+    }
+
+    // Resolve organization for agent (optional but helpful for RLS/scoping)
+    const { data: agentRow, error: agentErr } = await supabase
+      .from('agents')
+      .select('organization_id')
+      .eq('id', agentId)
+      .single()
+
+    if (agentErr) {
+      console.warn('Could not fetch agent organization_id; continuing without it:', agentErr)
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      agent_id: agentId,
+      external_session_id: externalSessionId,
+    }
+    if (agentRow?.organization_id) insertPayload['organization_id'] = agentRow.organization_id
+
+    const { data: created, error: createError } = await supabase
+      .from('chat_sessions')
+      .insert(insertPayload)
+      .select('id')
+      .single()
+
+    if (createError || !created) {
+      console.error('Error creating external session:', createError)
+      throw new Error('Failed to create chat session')
+    }
+
+    return created.id
+  },
+  /**
+   * Set like/dislike for a message, preferring user_id; fallback to session_id
+   */
+  async setMessageFeedback(params: {
+    messageId: string
+    agentId: string
+    sessionId: string
+    value: 1 | -1
+  }): Promise<{ value: 1 | -1 }>
+  {
+    const { messageId, agentId, sessionId, value } = params
+    const { data: userRes } = await supabase.auth.getUser()
+    const userId = userRes?.user?.id ?? null
+
+    const feedback_type = value === 1 ? 'positive' : 'negative'
+
+    const actorFilter = userId
+      ? { column: 'user_id', value: userId }
+      : { column: 'session_id', value: sessionId }
+
+    // 1) Tenta buscar existente
+    const { data: existing, error: fetchError } = await supabase
+      .from('message_feedback')
+      .select('id')
+      .eq('message_id', messageId)
+      .eq(actorFilter.column, actorFilter.value)
+      .maybeSingle()
+
+    if (fetchError) {
+      throw new Error('Falha ao buscar feedback existente')
+    }
+
+    // 2) Se existir, atualiza
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from('message_feedback')
+        .update({ value, feedback_type, block_index: 0 })
+        .eq('id', existing.id)
+
+      if (updateError) throw new Error('Falha ao atualizar feedback')
+      return { value }
+    }
+
+    // 3) Caso contrário, insere; se houver corrida (23505), faz update
+    const insertPayload: Record<string, unknown> = {
+      message_id: messageId,
+      agent_id: agentId,
+      conversation_id: sessionId,
+      value,
+      feedback_type,
+      block_index: 0,
+    }
+    if (userId) insertPayload['user_id'] = userId
+    else insertPayload['session_id'] = sessionId
+
+    const { error: insertError } = await supabase
+      .from('message_feedback')
+      .insert(insertPayload)
+
+    if (insertError) {
+      // @ts-ignore supabase error code
+      if (insertError.code === '23505') {
+        const { data: again } = await supabase
+          .from('message_feedback')
+          .select('id')
+          .eq('message_id', messageId)
+          .eq(actorFilter.column, actorFilter.value)
+          .maybeSingle()
+
+        if (again) {
+          const { error: updateError } = await supabase
+            .from('message_feedback')
+            .update({ value, feedback_type, block_index: 0 })
+            .eq('id', again.id)
+
+          if (updateError) throw new Error('Falha ao atualizar feedback após conflito')
+          return { value }
+        }
+      }
+      throw new Error('Falha ao registrar feedback')
+    }
+
+    return { value }
+  },
+  /**
    * Get or create a chat session for an agent
    */
   async getOrCreateSession(agentId: string, userId: string): Promise<string> {
@@ -92,7 +229,7 @@ export const chatService = {
    */
   async saveMessage(
     sessionId: string,
-    role: 'user' | 'assistant',
+    role: 'user' | 'assistant' | 'human',
     content: string
   ): Promise<ChatMessage> {
     const { data, error } = await supabase

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Custos OpenAI - Dashboard de Agentes IA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .models-info {
+            background: #f8f9fa;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .model-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .model-card h3 {
+            font-size: 14px;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .model-card p {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .calculator {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .section:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.1);
+        }
+        
+        .section-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+        
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .input-field label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .input-field input {
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .input-field input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .section-cost {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .section-cost-label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .section-cost-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .total-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 12px;
+            color: white;
+            margin-top: 30px;
+        }
+        
+        .total-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .total-item {
+            text-align: center;
+        }
+        
+        .total-item-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .total-item-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .info-box h4 {
+            color: #856404;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-box ul {
+            list-style: none;
+            font-size: 12px;
+            color: #856404;
+        }
+        
+        .info-box li {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .info-box li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+        
+        .breakdown {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .breakdown-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        /* Botões de preset */
+        button[onclick^="loadPreset"]:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .calculator {
+                padding: 15px;
+            }
+            
+            .input-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Calculadora de Custos OpenAI</h1>
+            <p>Dashboard de Agentes IA - Previsão de Gastos com API</p>
+            <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; font-size: 13px; line-height: 1.6;">
+                <strong>📋 Como Funciona:</strong><br>
+                1️⃣ Clientes fazem <strong>upload de arquivos</strong> e adicionam <strong>URLs</strong> → Sistema vetoriza<br>
+                2️⃣ Usuário pergunta algo → Sistema faz <strong>busca vetorizada</strong> nos documentos<br>
+                3️⃣ GPT-4o-mini gera a <strong>resposta final</strong> com base no contexto encontrado<br>
+                💡 Ajuste os valores abaixo conforme seu cenário real!
+            </div>
+        </header>
+        
+        <div class="models-info">
+            <div class="model-card">
+                <h3>📦 text-embedding-3-small</h3>
+                <p>$0.02 por 1M tokens<br>Para vetorização de arquivos e URLs</p>
+            </div>
+            <div class="model-card">
+                <h3>🔍 gpt-4o-mini</h3>
+                <p>$0.15 input + $0.60 output por 1M<br>Para busca vetorizada</p>
+            </div>
+            <div class="model-card">
+                <h3>💬 gpt-4o-mini</h3>
+                <p>$0.15 input + $0.60 output por 1M<br>Para respostas finais aos usuários</p>
+            </div>
+        </div>
+        
+        <div class="calculator">
+            <!-- Presets de Cenários -->
+            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">⚡ Cenários Pré-definidos (Clique para carregar):</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                    <button onclick="loadPreset('startup')" style="padding: 12px; border: 2px solid #667eea; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #667eea; transition: all 0.3s;">
+                        🚀 Startup<br><span style="font-size: 11px; font-weight: normal;">5 clientes</span>
+                    </button>
+                    <button onclick="loadPreset('small')" style="padding: 12px; border: 2px solid #667eea; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #667eea; transition: all 0.3s;">
+                        📈 Pequena Empresa<br><span style="font-size: 11px; font-weight: normal;">20 clientes</span>
+                    </button>
+                    <button onclick="loadPreset('medium')" style="padding: 12px; border: 2px solid #667eea; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #667eea; transition: all 0.3s;">
+                        🏢 Média Empresa<br><span style="font-size: 11px; font-weight: normal;">100 clientes</span>
+                    </button>
+                    <button onclick="loadPreset('enterprise')" style="padding: 12px; border: 2px solid #667eea; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #667eea; transition: all 0.3s;">
+                        🏭 Enterprise<br><span style="font-size: 11px; font-weight: normal;">500+ clientes</span>
+                    </button>
+                    <button onclick="loadPreset('high_volume')" style="padding: 12px; border: 2px solid #dc3545; background: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #dc3545; transition: all 0.3s;">
+                        🔥 Alto Volume<br><span style="font-size: 11px; font-weight: normal;">30k conversas + 60GB</span>
+                    </button>
+                </div>
+                <p style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;">
+                    💡 Selecione um cenário para preencher automaticamente os campos
+                </p>
+            </div>
+            
+            <!-- Seção 1: Vetorização de Arquivos -->
+            <div class="section">
+                <div class="section-title">
+                    <div class="section-icon">📄</div>
+                    <span>Vetorização de Arquivos (PDFs, Excel, Word)</span>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5;">
+                    <strong>Exemplo:</strong> Cliente faz upload de manuais, catálogos de produtos, contratos, planilhas. 
+                    Cada arquivo é processado e transformado em vetores para busca semântica.
+                    <br><em>Típico: 100 arquivos/mês de 2MB cada = Custo muito baixo!</em>
+                </p>
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Quantidade de arquivos por mês</label>
+                        <input type="number" id="files_count" value="100" min="0" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Tamanho médio (MB)</label>
+                        <input type="number" id="files_size" value="2" min="0" step="0.1" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Palavras por MB (densidade)</label>
+                        <input type="number" id="files_density" value="100000" min="0" step="1000" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="breakdown">
+                    <div class="breakdown-title">Detalhamento:</div>
+                    <div class="breakdown-item">
+                        <span>Total de palavras:</span>
+                        <span id="files_words_total">0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span>Total de tokens:</span>
+                        <span id="files_tokens_total">0</span>
+                    </div>
+                </div>
+                <div class="section-cost">
+                    <span class="section-cost-label">Custo Mensal - Vetorização de Arquivos:</span>
+                    <span class="section-cost-value" id="cost_files">$0.00</span>
+                </div>
+            </div>
+            
+            <!-- Seção 2: Web Scraper -->
+            <div class="section">
+                <div class="section-title">
+                    <div class="section-icon">🕷️</div>
+                    <span>Web Scraper + Vetorização de URLs</span>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5;">
+                    <strong>Exemplo:</strong> Cliente adiciona URLs de páginas de suporte, artigos da base de conhecimento, FAQs do site. 
+                    O sistema extrai o conteúdo, chunka e vetoriza para o chatbot responder com base nessas informações.
+                    <br><em>Típico: 200 URLs/mês com ~1500 palavras cada = Custo irrisório!</em>
+                </p>
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>URLs processadas por mês</label>
+                        <input type="number" id="urls_count" value="200" min="0" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Palavras por URL (média)</label>
+                        <input type="number" id="urls_words" value="1500" min="0" step="100" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="breakdown">
+                    <div class="breakdown-title">Detalhamento:</div>
+                    <div class="breakdown-item">
+                        <span>Total de palavras:</span>
+                        <span id="urls_words_total">0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span>Total de tokens:</span>
+                        <span id="urls_tokens_total">0</span>
+                    </div>
+                </div>
+                <div class="section-cost">
+                    <span class="section-cost-label">Custo Mensal - Web Scraper:</span>
+                    <span class="section-cost-value" id="cost_urls">$0.00</span>
+                </div>
+            </div>
+            
+            <!-- Seção 3: Buscas Vetorizadas -->
+            <div class="section">
+                <div class="section-title">
+                    <div class="section-icon">🔍</div>
+                    <span>Buscas Vetorizadas (gpt-4o-mini)</span>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5;">
+                    <strong>Exemplo:</strong> Usuário pergunta algo, o sistema busca nos documentos vetorizados e seleciona os 5 chunks mais relevantes. 
+                    O GPT-4o-mini filtra e ranqueia os resultados antes de montar a resposta final.
+                    <br><em>Típico: 5.000 buscas/mês com contexto de 2k tokens = Maior parte do custo está aqui!</em>
+                </p>
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Buscas por mês</label>
+                        <input type="number" id="searches_count" value="5000" min="0" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Tokens de contexto (média)</label>
+                        <input type="number" id="searches_context" value="2000" min="0" step="100" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Tokens de resposta (média)</label>
+                        <input type="number" id="searches_response" value="150" min="0" step="10" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="breakdown">
+                    <div class="breakdown-title">Detalhamento:</div>
+                    <div class="breakdown-item">
+                        <span>Total tokens input:</span>
+                        <span id="searches_input_total">0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span>Total tokens output:</span>
+                        <span id="searches_output_total">0</span>
+                    </div>
+                </div>
+                <div class="section-cost">
+                    <span class="section-cost-label">Custo Mensal - Buscas:</span>
+                    <span class="section-cost-value" id="cost_searches">$0.00</span>
+                </div>
+            </div>
+            
+            <!-- Seção 4: Respostas Finais -->
+            <div class="section">
+                <div class="section-title">
+                    <div class="section-icon">💬</div>
+                    <span>Respostas Finais (gpt-4o-mini)</span>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; line-height: 1.5;">
+                    <strong>Exemplo:</strong> Após buscar documentos relevantes, o GPT-4o-mini gera a resposta final para o usuário. 
+                    Uma conversa típica tem 5 mensagens (usuário pergunta → bot responde → usuário pergunta de novo...).
+                    <br><em>Típico: 400 conversas/mês × 5 mensagens = 2.000 respostas com contexto rico!</em>
+                </p>
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Conversas completas por mês</label>
+                        <input type="number" id="chats_sessions" value="400" min="0" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Mensagens do bot por conversa (média)</label>
+                        <input type="number" id="chats_messages_per_session" value="5" min="0" step="1" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Tokens de input por mensagem (contexto)</label>
+                        <input type="number" id="chats_input" value="3000" min="0" step="100" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Tokens de output por mensagem (resposta)</label>
+                        <input type="number" id="chats_output" value="500" min="0" step="50" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="breakdown">
+                    <div class="breakdown-title">Detalhamento:</div>
+                    <div class="breakdown-item">
+                        <span>Total de mensagens do bot:</span>
+                        <span id="chats_total_messages">0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span>Total tokens input:</span>
+                        <span id="chats_input_total">0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span>Total tokens output:</span>
+                        <span id="chats_output_total">0</span>
+                    </div>
+                </div>
+                <div class="section-cost">
+                    <span class="section-cost-label">Custo Mensal - Respostas:</span>
+                    <span class="section-cost-value" id="cost_chats">$0.00</span>
+                </div>
+            </div>
+            
+            <!-- Alerta de Vetorização Inicial (só para alto volume) -->
+            <div id="initial_vectorization_alert" style="display: none; background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 10px; font-size: 18px;">⚠️ Atenção: Custo Inicial de Vetorização</h3>
+                <p style="font-size: 14px; line-height: 1.6; margin-bottom: 15px;">
+                    Para vetorizar <strong id="total_gb_data">60GB</strong> de dados inicialmente, você terá um custo único adicional:
+                </p>
+                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 14px; opacity: 0.9;">Custo de Vetorização Inicial (uma única vez)</div>
+                    <div style="font-size: 32px; font-weight: bold; margin-top: 5px;" id="initial_cost">$180.00</div>
+                </div>
+                <p style="font-size: 12px; margin-top: 15px; opacity: 0.9;">
+                    💡 Após a vetorização inicial, você só pagará pelos custos operacionais mensais (buscas + respostas).
+                    Novos arquivos adicionados posteriormente terão custo incremental mínimo.
+                </p>
+            </div>
+            
+            <!-- Resumo Total -->
+            <div class="total-summary">
+                <h2 style="text-align: center; margin-bottom: 10px;">💰 Previsão Total de Custos</h2>
+                <div class="total-grid">
+                    <div class="total-item">
+                        <div class="total-item-label">Custo Mensal (USD)</div>
+                        <div class="total-item-value" id="total_monthly">$0.00</div>
+                    </div>
+                    <div class="total-item">
+                        <div class="total-item-label">Custo Anual (USD)</div>
+                        <div class="total-item-value" id="total_yearly">$0.00</div>
+                    </div>
+                    <div class="total-item">
+                        <div class="total-item-label">Custo Mensal (R$)</div>
+                        <div class="total-item-value" id="total_monthly_brl">R$ 0,00</div>
+                    </div>
+                    <div class="total-item">
+                        <div class="total-item-label">Custo por Cliente/Mês</div>
+                        <div class="total-item-value" id="cost_per_org">$0.00</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Info Box -->
+            <div class="info-box">
+                <h4>📊 Informações e Dicas de Otimização:</h4>
+                <ul>
+                    <li><strong>Economia de 80%:</strong> Usar text-embedding-3-small em vez de ada-002</li>
+                    <li><strong>gpt-4o-mini para tudo:</strong> 200x mais barato que gpt-4, qualidade excelente</li>
+                    <li><strong>Mesma IA, custo menor:</strong> gpt-4o-mini é baseado no gpt-4o (última geração)</li>
+                    <li><strong>Cache de embeddings:</strong> Evitar reprocessar URLs/arquivos sem mudanças</li>
+                    <li><strong>Cotação USD/BRL:</strong> Calculado a R$ 5,00 (ajustar conforme câmbio atual)</li>
+                    <li><strong>Organizações:</strong> Distribua custos entre seus clientes para lucratividade</li>
+                </ul>
+            </div>
+            
+            <div class="info-box" style="background: #d1ecf1; border-color: #17a2b8;">
+                <h4 style="color: #0c5460;">💡 Cenários de Uso Reais (com gpt-4o-mini):</h4>
+                <ul style="color: #0c5460;">
+                    <li><strong>Startup (5 clientes):</strong> ~$5-15/mês (200x mais barato que gpt-4!)</li>
+                    <li><strong>Pequena Empresa (20 clientes):</strong> ~$20-50/mês</li>
+                    <li><strong>Média Empresa (100 clientes):</strong> ~$100-250/mês</li>
+                    <li><strong>Enterprise (500+ clientes):</strong> ~$500-1.000/mês</li>
+                    <li><strong>💰 Economia gigante:</strong> Com gpt-4 seria 200x mais caro!</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Cotação USD para BRL (ajustar conforme necessário)
+        const USD_TO_BRL = 5.00;
+        
+        function formatNumber(num) {
+            return new Intl.NumberFormat('pt-BR').format(Math.round(num));
+        }
+        
+        // Função para carregar presets
+        function loadPreset(type) {
+            const presets = {
+                startup: {
+                    files_count: 20,
+                    files_size: 2,
+                    files_density: 100000,
+                    urls_count: 50,
+                    urls_words: 1500,
+                    searches_count: 500,
+                    searches_context: 2000,
+                    searches_response: 150,
+                    chats_sessions: 100,
+                    chats_messages_per_session: 5,
+                    chats_input: 3000,
+                    chats_output: 500
+                },
+                small: {
+                    files_count: 100,
+                    files_size: 2,
+                    files_density: 100000,
+                    urls_count: 200,
+                    urls_words: 1500,
+                    searches_count: 2000,
+                    searches_context: 2000,
+                    searches_response: 150,
+                    chats_sessions: 400,
+                    chats_messages_per_session: 5,
+                    chats_input: 3000,
+                    chats_output: 500
+                },
+                medium: {
+                    files_count: 500,
+                    files_size: 3,
+                    files_density: 100000,
+                    urls_count: 1000,
+                    urls_words: 1500,
+                    searches_count: 10000,
+                    searches_context: 2000,
+                    searches_response: 150,
+                    chats_sessions: 2000,
+                    chats_messages_per_session: 5,
+                    chats_input: 3000,
+                    chats_output: 500
+                },
+                enterprise: {
+                    files_count: 2000,
+                    files_size: 5,
+                    files_density: 100000,
+                    urls_count: 5000,
+                    urls_words: 1500,
+                    searches_count: 50000,
+                    searches_context: 2000,
+                    searches_response: 150,
+                    chats_sessions: 10000,
+                    chats_messages_per_session: 5,
+                    chats_input: 3000,
+                    chats_output: 500
+                },
+                high_volume: {
+                    files_count: 3000,
+                    files_size: 20, // 60GB / 3000 arquivos = 20MB por arquivo
+                    files_density: 100000,
+                    urls_count: 2000,
+                    urls_words: 1500,
+                    searches_count: 150000, // 30k conversas × 5 mensagens
+                    searches_context: 2000,
+                    searches_response: 150,
+                    chats_sessions: 30000,
+                    chats_messages_per_session: 5,
+                    chats_input: 3000,
+                    chats_output: 500
+                }
+            };
+            
+            const preset = presets[type];
+            if (!preset) return;
+            
+            // Preencher todos os campos
+            Object.keys(preset).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.value = preset[key];
+                }
+            });
+            
+            // Recalcular
+            calculate();
+            
+            // Feedback visual
+            const buttons = document.querySelectorAll('button[onclick^="loadPreset"]');
+            buttons.forEach(btn => {
+                btn.style.background = 'white';
+                btn.style.transform = 'scale(1)';
+            });
+            event.target.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            event.target.style.color = 'white';
+            event.target.style.transform = 'scale(1.05)';
+            
+            // Scroll suave para o resumo
+            setTimeout(() => {
+                document.querySelector('.total-summary').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+        
+        function calculate() {
+            // 1. VETORIZAÇÃO DE ARQUIVOS
+            const filesCount = parseFloat(document.getElementById('files_count').value) || 0;
+            const filesSize = parseFloat(document.getElementById('files_size').value) || 0;
+            const filesDensity = parseFloat(document.getElementById('files_density').value) || 0;
+            
+            const filesWords = filesCount * filesSize * filesDensity;
+            const filesTokens = filesWords * 1.5; // 1 palavra ≈ 1.5 tokens em português
+            const costFiles = (filesTokens / 1000000) * 0.02; // text-embedding-3-small
+            
+            document.getElementById('files_words_total').textContent = formatNumber(filesWords) + ' palavras';
+            document.getElementById('files_tokens_total').textContent = formatNumber(filesTokens) + ' tokens';
+            
+            // Calcular GB total e mostrar alerta se for muito dados
+            const totalGB = (filesCount * filesSize) / 1024;
+            const initialVetorizationAlert = document.getElementById('initial_vectorization_alert');
+            
+            if (totalGB > 10) {
+                // Mostrar alerta para grandes volumes
+                initialVetorizationAlert.style.display = 'block';
+                document.getElementById('total_gb_data').textContent = totalGB.toFixed(0) + 'GB';
+                document.getElementById('initial_cost').textContent = '$' + costFiles.toFixed(2);
+            } else {
+                initialVetorizationAlert.style.display = 'none';
+            }
+            
+            // 2. WEB SCRAPER
+            const urlsCount = parseFloat(document.getElementById('urls_count').value) || 0;
+            const urlsWords = parseFloat(document.getElementById('urls_words').value) || 0;
+            
+            const urlsTotalWords = urlsCount * urlsWords;
+            const urlsTokens = urlsTotalWords * 1.5;
+            const costUrls = (urlsTokens / 1000000) * 0.02; // text-embedding-3-small
+            
+            document.getElementById('urls_words_total').textContent = formatNumber(urlsTotalWords) + ' palavras';
+            document.getElementById('urls_tokens_total').textContent = formatNumber(urlsTokens) + ' tokens';
+            
+            // 3. BUSCAS VETORIZADAS (gpt-4o-mini)
+            const searchesCount = parseFloat(document.getElementById('searches_count').value) || 0;
+            const searchesContext = parseFloat(document.getElementById('searches_context').value) || 0;
+            const searchesResponse = parseFloat(document.getElementById('searches_response').value) || 0;
+            
+            const searchesInputTokens = searchesCount * searchesContext;
+            const searchesOutputTokens = searchesCount * searchesResponse;
+            const costSearches = (searchesInputTokens / 1000000) * 0.15 + (searchesOutputTokens / 1000000) * 0.60;
+            
+            document.getElementById('searches_input_total').textContent = formatNumber(searchesInputTokens) + ' tokens';
+            document.getElementById('searches_output_total').textContent = formatNumber(searchesOutputTokens) + ' tokens';
+            
+            // 4. RESPOSTAS FINAIS (gpt-4o-mini)
+            const chatsSessions = parseFloat(document.getElementById('chats_sessions').value) || 0;
+            const chatsMessagesPerSession = parseFloat(document.getElementById('chats_messages_per_session').value) || 0;
+            const chatsInput = parseFloat(document.getElementById('chats_input').value) || 0;
+            const chatsOutput = parseFloat(document.getElementById('chats_output').value) || 0;
+            
+            // Total de mensagens = conversas × mensagens por conversa
+            const totalMessages = chatsSessions * chatsMessagesPerSession;
+            
+            const chatsInputTokens = totalMessages * chatsInput;
+            const chatsOutputTokens = totalMessages * chatsOutput;
+            const costChats = (chatsInputTokens / 1000000) * 0.15 + (chatsOutputTokens / 1000000) * 0.60;
+            
+            document.getElementById('chats_total_messages').textContent = formatNumber(totalMessages) + ' mensagens';
+            document.getElementById('chats_input_total').textContent = formatNumber(chatsInputTokens) + ' tokens';
+            document.getElementById('chats_output_total').textContent = formatNumber(chatsOutputTokens) + ' tokens';
+            
+            // TOTAIS
+            const totalMonthly = costFiles + costUrls + costSearches + costChats;
+            const totalYearly = totalMonthly * 12;
+            const totalMonthlyBRL = totalMonthly * USD_TO_BRL;
+            
+            // Assumindo 10 organizações (ajustar conforme seu caso)
+            const orgsCount = 10;
+            const costPerOrg = totalMonthly / orgsCount;
+            
+            // Atualizar UI
+            document.getElementById('cost_files').textContent = '$' + costFiles.toFixed(2);
+            document.getElementById('cost_urls').textContent = '$' + costUrls.toFixed(2);
+            document.getElementById('cost_searches').textContent = '$' + costSearches.toFixed(2);
+            document.getElementById('cost_chats').textContent = '$' + costChats.toFixed(2);
+            
+            document.getElementById('total_monthly').textContent = '$' + totalMonthly.toFixed(2);
+            document.getElementById('total_yearly').textContent = '$' + totalYearly.toFixed(2);
+            document.getElementById('total_monthly_brl').textContent = 'R$ ' + totalMonthlyBRL.toFixed(2);
+            document.getElementById('cost_per_org').textContent = '$' + costPerOrg.toFixed(2);
+        }
+        
+        // Calcular ao carregar a página
+        calculate();
+    </script>
+</body>
+</html>
+
+

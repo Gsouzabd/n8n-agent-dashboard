@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora OpenAI vs OpenRouter - Comparação de Custos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .provider-selector {
+            background: #f8f9fa;
+            padding: 25px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .provider-selector h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+        
+        .provider-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .provider-btn {
+            padding: 20px;
+            border: 3px solid #e9ecef;
+            background: white;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .provider-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .provider-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .provider-btn h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        
+        .provider-btn p {
+            font-size: 13px;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        
+        .provider-btn .price {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .calculator {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+        
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .input-field label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .input-field input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .comparison-table {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+        
+        .comparison-table h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .winner {
+            background: #d4edda;
+            font-weight: bold;
+            color: #155724;
+        }
+        
+        .presets {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .presets h3 {
+            margin-bottom: 15px;
+            color: #856404;
+        }
+        
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        .preset-btn {
+            padding: 12px;
+            border: 2px solid #ffc107;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #856404;
+        }
+        
+        .preset-btn:hover {
+            background: #ffc107;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .calculator {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 OpenAI vs OpenRouter - Calculadora de Custos</h1>
+            <p>Compare preços e economize até 90% nos custos de API!</p>
+        </header>
+        
+        <!-- Seletor de Provider -->
+        <div class="provider-selector">
+            <h2>🎯 Escolha Seu Provider e Stack de Modelos:</h2>
+            <div class="provider-buttons">
+                <div class="provider-btn active" onclick="selectProvider('openai')">
+                    <h3>🤖 OpenAI Direto</h3>
+                    <p>text-embedding-3-small + gpt-4o-mini</p>
+                    <div class="price">Qualidade máxima</div>
+                </div>
+                
+                <div class="provider-btn" onclick="selectProvider('openrouter-gemini')">
+                    <h3>🔄 OpenRouter + Gemini</h3>
+                    <p>Voyage AI + Gemini 1.5 Flash</p>
+                    <div class="price">⚡ 50% economia</div>
+                </div>
+                
+                <div class="provider-btn" onclick="selectProvider('openrouter-llama')">
+                    <h3>🚀 OpenRouter + Llama</h3>
+                    <p>Voyage AI + Llama 3.1 8B</p>
+                    <div class="price">💰 90% economia</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 2px solid #667eea;">
+                <p style="font-size: 13px; color: #333; text-align: center; line-height: 1.6;">
+                    <strong id="current-stack">Stack Atual:</strong><br>
+                    <span id="stack-details">text-embedding-3-small ($0.02/1M) + gpt-4o-mini ($0.15/$0.60 por 1M)</span>
+                </p>
+            </div>
+        </div>
+        
+        <div class="calculator">
+            <!-- Presets -->
+            <div class="presets">
+                <h3>⚡ Cenários Rápidos:</h3>
+                <div class="preset-buttons">
+                    <button class="preset-btn" onclick="loadPreset('startup')">🚀 Startup</button>
+                    <button class="preset-btn" onclick="loadPreset('small')">📈 Pequena</button>
+                    <button class="preset-btn" onclick="loadPreset('medium')">🏢 Média</button>
+                    <button class="preset-btn" onclick="loadPreset('enterprise')">🏭 Enterprise</button>
+                    <button class="preset-btn" onclick="loadPreset('high_volume')">🔥 Alto Volume</button>
+                </div>
+            </div>
+            
+            <!-- Inputs de Uso -->
+            <div class="section">
+                <div class="section-title">
+                    <div class="section-icon">📊</div>
+                    <span>Seu Uso Mensal</span>
+                </div>
+                
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Vetorização (GB de dados)</label>
+                        <input type="number" id="vectorization_gb" value="1" min="0" step="0.1" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Conversas por mês</label>
+                        <input type="number" id="conversations" value="1000" min="0" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Mensagens por conversa</label>
+                        <input type="number" id="messages_per_conv" value="5" min="0" oninput="calculate()">
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <div class="input-field">
+                        <label>Tokens de contexto (busca + resposta)</label>
+                        <input type="number" id="context_tokens" value="3000" min="0" step="100" oninput="calculate()">
+                    </div>
+                    <div class="input-field">
+                        <label>Tokens de resposta (output)</label>
+                        <input type="number" id="output_tokens" value="500" min="0" step="50" oninput="calculate()">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tabela de Comparação -->
+            <div class="comparison-table">
+                <h2>💵 Comparação de Custos Mensais</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>OpenAI Direto</th>
+                            <th>OpenRouter + Gemini</th>
+                            <th>OpenRouter + Llama</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Vetorização (uma vez)</strong></td>
+                            <td id="cost_vec_openai">$0.00</td>
+                            <td id="cost_vec_gemini">$0.00</td>
+                            <td id="cost_vec_llama">$0.00</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Buscas (mensal)</strong></td>
+                            <td id="cost_search_openai">$0.00</td>
+                            <td id="cost_search_gemini">$0.00</td>
+                            <td id="cost_search_llama">$0.00</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Respostas (mensal)</strong></td>
+                            <td id="cost_resp_openai">$0.00</td>
+                            <td id="cost_resp_gemini">$0.00</td>
+                            <td id="cost_resp_llama">$0.00</td>
+                        </tr>
+                        <tr style="background: #f8f9fa; font-weight: bold; font-size: 16px;">
+                            <td>TOTAL MENSAL</td>
+                            <td id="total_openai">$0.00</td>
+                            <td id="total_gemini">$0.00</td>
+                            <td id="total_llama">$0.00</td>
+                        </tr>
+                        <tr style="background: #d4edda;">
+                            <td><strong>Economia vs OpenAI</strong></td>
+                            <td>-</td>
+                            <td id="savings_gemini" style="color: #155724; font-weight: bold;">$0.00</td>
+                            <td id="savings_llama" style="color: #155724; font-weight: bold;">$0.00</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total Anual (USD)</strong></td>
+                            <td id="annual_openai">$0.00</td>
+                            <td id="annual_gemini">$0.00</td>
+                            <td id="annual_llama">$0.00</td>
+                        </tr>
+                        <tr style="background: #fff3cd; border-top: 3px solid #ffc107;">
+                            <td colspan="4" style="text-align: center; font-weight: bold; padding: 15px;">
+                                💵 Valores em REAL (BRL) - Cotação: R$ 5,00/USD
+                            </td>
+                        </tr>
+                        <tr style="background: #fff9e6;">
+                            <td><strong>Total Mensal (R$)</strong></td>
+                            <td id="total_openai_brl">R$ 0,00</td>
+                            <td id="total_gemini_brl">R$ 0,00</td>
+                            <td id="total_llama_brl">R$ 0,00</td>
+                        </tr>
+                        <tr style="background: #fff9e6;">
+                            <td><strong>Total Anual (R$)</strong></td>
+                            <td id="annual_openai_brl">R$ 0,00</td>
+                            <td id="annual_gemini_brl">R$ 0,00</td>
+                            <td id="annual_llama_brl">R$ 0,00</td>
+                        </tr>
+                        <tr style="background: #d4edda;">
+                            <td><strong>Economia Anual (R$)</strong></td>
+                            <td>-</td>
+                            <td id="savings_annual_gemini_brl" style="color: #155724; font-weight: bold;">R$ 0,00</td>
+                            <td id="savings_annual_llama_brl" style="color: #155724; font-weight: bold;">R$ 0,00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; text-align: center;">
+                    <h3 style="color: #28a745; margin-bottom: 10px;">🏆 Melhor Opção: <span id="best_option">Calculando...</span></h3>
+                    <p style="font-size: 14px; color: #666;" id="recommendation">Ajuste os valores acima para ver a recomendação</p>
+                </div>
+            </div>
+            
+            <!-- Info Boxes -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 30px;">
+                <div style="background: #e7f3ff; padding: 20px; border-radius: 12px; border-left: 4px solid #0066cc;">
+                    <h4 style="color: #0066cc; margin-bottom: 10px;">ℹ️ OpenAI Direto</h4>
+                    <ul style="font-size: 13px; color: #333; line-height: 1.8; padding-left: 20px;">
+                        <li>Melhor qualidade e suporte</li>
+                        <li>Latência mais baixa</li>
+                        <li>Mais confiável</li>
+                        <li>Sem intermediários</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 20px; border-radius: 12px; border-left: 4px solid #ffc107;">
+                    <h4 style="color: #856404; margin-bottom: 10px;">⚡ OpenRouter + Gemini</h4>
+                    <ul style="font-size: 13px; color: #333; line-height: 1.8; padding-left: 20px;">
+                        <li>50% mais barato</li>
+                        <li>Qualidade próxima do GPT-4o-mini</li>
+                        <li>Bom para produção</li>
+                        <li>Failover automático</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #d4edda; padding: 20px; border-radius: 12px; border-left: 4px solid #28a745;">
+                    <h4 style="color: #155724; margin-bottom: 10px;">💰 OpenRouter + Llama</h4>
+                    <ul style="font-size: 13px; color: #333; line-height: 1.8; padding-left: 20px;">
+                        <li>90% mais barato</li>
+                        <li>Open source</li>
+                        <li>Bom para alto volume</li>
+                        <li>Qualidade pode variar</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentProvider = 'openai';
+        const USD_TO_BRL = 5.00; // Cotação do dólar
+        
+        function formatBRL(value) {
+            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        const PRICING = {
+            openai: {
+                embedding: 0.02,  // per 1M tokens
+                input: 0.15,      // per 1M tokens
+                output: 0.60      // per 1M tokens
+            },
+            gemini: {
+                embedding: 0.01,  // Voyage AI
+                input: 0.075,     // Gemini 1.5 Flash
+                output: 0.30
+            },
+            llama: {
+                embedding: 0.01,  // Voyage AI
+                input: 0.06,      // Llama 3.1 8B
+                output: 0.06
+            }
+        };
+        
+        const STACK_INFO = {
+            openai: 'text-embedding-3-small ($0.02/1M) + gpt-4o-mini ($0.15/$0.60 por 1M)',
+            'openrouter-gemini': 'Voyage AI ($0.01/1M) + Gemini 1.5 Flash ($0.075/$0.30 por 1M)',
+            'openrouter-llama': 'Voyage AI ($0.01/1M) + Llama 3.1 8B ($0.06/$0.06 por 1M)'
+        };
+        
+        function selectProvider(provider) {
+            currentProvider = provider.replace('openrouter-', '');
+            
+            // Update button styles
+            document.querySelectorAll('.provider-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.provider-btn').classList.add('active');
+            
+            // Update stack info
+            document.getElementById('stack-details').textContent = STACK_INFO[provider];
+            
+            calculate();
+        }
+        
+        function loadPreset(type) {
+            const presets = {
+                startup: { vectorization_gb: 0.5, conversations: 100, messages_per_conv: 5, context_tokens: 3000, output_tokens: 500 },
+                small: { vectorization_gb: 2, conversations: 400, messages_per_conv: 5, context_tokens: 3000, output_tokens: 500 },
+                medium: { vectorization_gb: 10, conversations: 2000, messages_per_conv: 5, context_tokens: 3000, output_tokens: 500 },
+                enterprise: { vectorization_gb: 30, conversations: 10000, messages_per_conv: 5, context_tokens: 3000, output_tokens: 500 },
+                high_volume: { vectorization_gb: 60, conversations: 30000, messages_per_conv: 5, context_tokens: 3000, output_tokens: 500 }
+            };
+            
+            const preset = presets[type];
+            Object.keys(preset).forEach(key => {
+                document.getElementById(key).value = preset[key];
+            });
+            
+            calculate();
+        }
+        
+        function calculate() {
+            const gb = parseFloat(document.getElementById('vectorization_gb').value) || 0;
+            const conversations = parseFloat(document.getElementById('conversations').value) || 0;
+            const messagesPerConv = parseFloat(document.getElementById('messages_per_conv').value) || 0;
+            const contextTokens = parseFloat(document.getElementById('context_tokens').value) || 0;
+            const outputTokens = parseFloat(document.getElementById('output_tokens').value) || 0;
+            
+            const totalMessages = conversations * messagesPerConv;
+            
+            // Vectorization (one-time): 1 GB = ~150M tokens (50k words/MB × 1024 MB × 1.5 tokens/word)
+            const vectorizationTokens = gb * 150000000;
+            
+            const results = {};
+            
+            ['openai', 'gemini', 'llama'].forEach(provider => {
+                const pricing = PRICING[provider];
+                
+                // Vectorization cost
+                const vecCost = (vectorizationTokens / 1000000) * pricing.embedding;
+                
+                // Search cost (input only, small output)
+                const searchInputCost = (totalMessages * contextTokens / 1000000) * pricing.input;
+                const searchOutputCost = (totalMessages * 150 / 1000000) * pricing.output; // 150 tokens output na busca
+                const searchCost = searchInputCost + searchOutputCost;
+                
+                // Response cost
+                const responseInputCost = (totalMessages * contextTokens / 1000000) * pricing.input;
+                const responseOutputCost = (totalMessages * outputTokens / 1000000) * pricing.output;
+                const responseCost = responseInputCost + responseOutputCost;
+                
+                const monthly = searchCost + responseCost;
+                const annual = monthly * 12;
+                
+                results[provider] = {
+                    vectorization: vecCost,
+                    search: searchCost,
+                    response: responseCost,
+                    monthly: monthly,
+                    annual: annual
+                };
+            });
+            
+            // Update table
+            document.getElementById('cost_vec_openai').textContent = '$' + results.openai.vectorization.toFixed(2);
+            document.getElementById('cost_vec_gemini').textContent = '$' + results.gemini.vectorization.toFixed(2);
+            document.getElementById('cost_vec_llama').textContent = '$' + results.llama.vectorization.toFixed(2);
+            
+            document.getElementById('cost_search_openai').textContent = '$' + results.openai.search.toFixed(2);
+            document.getElementById('cost_search_gemini').textContent = '$' + results.gemini.search.toFixed(2);
+            document.getElementById('cost_search_llama').textContent = '$' + results.llama.search.toFixed(2);
+            
+            document.getElementById('cost_resp_openai').textContent = '$' + results.openai.response.toFixed(2);
+            document.getElementById('cost_resp_gemini').textContent = '$' + results.gemini.response.toFixed(2);
+            document.getElementById('cost_resp_llama').textContent = '$' + results.llama.response.toFixed(2);
+            
+            document.getElementById('total_openai').textContent = '$' + results.openai.monthly.toFixed(2);
+            document.getElementById('total_gemini').textContent = '$' + results.gemini.monthly.toFixed(2);
+            document.getElementById('total_llama').textContent = '$' + results.llama.monthly.toFixed(2);
+            
+            const savingsGemini = results.openai.monthly - results.gemini.monthly;
+            const savingsLlama = results.openai.monthly - results.llama.monthly;
+            
+            document.getElementById('savings_gemini').textContent = '$' + savingsGemini.toFixed(2) + ' (' + ((savingsGemini/results.openai.monthly)*100).toFixed(0) + '%)';
+            document.getElementById('savings_llama').textContent = '$' + savingsLlama.toFixed(2) + ' (' + ((savingsLlama/results.openai.monthly)*100).toFixed(0) + '%)';
+            
+            document.getElementById('annual_openai').textContent = '$' + results.openai.annual.toFixed(2);
+            document.getElementById('annual_gemini').textContent = '$' + results.gemini.annual.toFixed(2);
+            document.getElementById('annual_llama').textContent = '$' + results.llama.annual.toFixed(2);
+            
+            // Valores em BRL
+            document.getElementById('total_openai_brl').textContent = formatBRL(results.openai.monthly * USD_TO_BRL);
+            document.getElementById('total_gemini_brl').textContent = formatBRL(results.gemini.monthly * USD_TO_BRL);
+            document.getElementById('total_llama_brl').textContent = formatBRL(results.llama.monthly * USD_TO_BRL);
+            
+            document.getElementById('annual_openai_brl').textContent = formatBRL(results.openai.annual * USD_TO_BRL);
+            document.getElementById('annual_gemini_brl').textContent = formatBRL(results.gemini.annual * USD_TO_BRL);
+            document.getElementById('annual_llama_brl').textContent = formatBRL(results.llama.annual * USD_TO_BRL);
+            
+            const savingsAnnualGeminiBRL = (results.openai.annual - results.gemini.annual) * USD_TO_BRL;
+            const savingsAnnualLlamaBRL = (results.openai.annual - results.llama.annual) * USD_TO_BRL;
+            
+            document.getElementById('savings_annual_gemini_brl').textContent = formatBRL(savingsAnnualGeminiBRL);
+            document.getElementById('savings_annual_llama_brl').textContent = formatBRL(savingsAnnualLlamaBRL);
+            
+            // Determine best option
+            let bestOption = 'OpenAI Direto';
+            let recommendation = 'Melhor qualidade e confiabilidade';
+            
+            if (results.openai.monthly > 100) {
+                if (results.llama.monthly < 50) {
+                    bestOption = 'OpenRouter + Llama 3.1';
+                    recommendation = 'Economia massiva de ' + ((savingsLlama/results.openai.monthly)*100).toFixed(0) + '% ideal para alto volume!';
+                } else {
+                    bestOption = 'OpenRouter + Gemini';
+                    recommendation = 'Ótimo equilíbrio entre custo e qualidade. Economia de ' + ((savingsGemini/results.openai.monthly)*100).toFixed(0) + '%!';
+                }
+            } else if (results.openai.monthly > 20) {
+                bestOption = 'OpenRouter + Gemini';
+                recommendation = 'Economia significativa mantendo boa qualidade';
+            }
+            
+            document.getElementById('best_option').textContent = bestOption;
+            document.getElementById('recommendation').textContent = recommendation;
+        }
+        
+        // Initial calculation
+        calculate();
+    </script>
+</body>
+</html>
+

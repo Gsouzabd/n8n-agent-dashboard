@@ -6,6 +6,7 @@ import { AnimatePresence, motion, LazyMotion, domAnimation } from 'framer-motion
 import { useOnClickOutside } from 'usehooks-ts'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOrganization } from '@/contexts/OrganizationContext'
 import { Agent } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,7 @@ import {
   Activity,
   MessageSquare
 } from 'lucide-react'
+import { Code, Eye, TrendingUp } from 'lucide-react'
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ')
 
@@ -440,11 +442,29 @@ const AgentCard = ({ agent, onDelete }: { agent: Agent; onDelete: (id: string) =
           </Button>
           <Button 
             size="sm" 
+            variant="outline"
+            className="gap-2"
+            onClick={() => navigate(`/agents/${agent.id}/widget`)}
+            title="Widget / Embed"
+          >
+            <Code className="w-3 h-3" />
+          </Button>
+          <Button 
+            size="sm" 
             variant="outline" 
             className="gap-2"
             onClick={() => navigate(`/agents/${agent.id}/knowledge`)}
           >
             <Database className="w-3 h-3" />
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline"
+            className="gap-2"
+            onClick={() => navigate(`/agents/${agent.id}/quality`)}
+            title="Qualidade"
+          >
+            <TrendingUp className="w-3 h-3" />
           </Button>
           <Button 
             size="sm" 
@@ -464,23 +484,35 @@ export function AgentList() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const user = useAuthStore((state) => state.user)
+  const { currentOrganization } = useOrganization()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (user) {
+    if (user && currentOrganization) {
+      console.log('Loading agents for organization:', currentOrganization.id, currentOrganization.name)
       loadAgents()
     }
-  }, [user])
+  }, [user, currentOrganization])
 
   const loadAgents = async () => {
+    if (!currentOrganization) {
+      console.log('No organization selected')
+      setAgents([])
+      setLoading(false)
+      return
+    }
+
     try {
+      setLoading(true)
       const { data, error } = await supabase
         .from('agents')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
+      
+      console.log('Agents loaded:', data?.length || 0)
       setAgents(data || [])
     } catch (error) {
       console.error('Erro ao carregar agentes:', error)
@@ -493,6 +525,12 @@ export function AgentList() {
     if (!confirm('Tem certeza que deseja excluir este agente?')) return
 
     try {
+      // Remover feedbacks associados para evitar erro de FK
+      await supabase
+        .from('message_feedback')
+        .delete()
+        .eq('agent_id', id)
+
       const { error } = await supabase
         .from('agents')
         .delete()

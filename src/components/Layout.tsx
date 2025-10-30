@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { OrganizationSwitcher } from './OrganizationSwitcher'
 import { Button } from './ui/Button'
-import { Bot, LogOut, User } from 'lucide-react'
+import { Bot, LogOut, User, Settings, Users } from 'lucide-react'
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((state) => state.user)
@@ -17,10 +18,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center space-x-2">
-            <Bot className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">Dashboard de Agentes IA</span>
-          </Link>
+          <div className="flex items-center space-x-4">
+            <Link to="/" className="flex items-center space-x-2">
+              <Bot className="h-8 w-8 text-primary" />
+              <span className="text-xl font-bold">Dashboard de Agentes IA</span>
+            </Link>
+            {user && <OrganizationSwitcher />}
+          </div>
           
           {user && (
             <div className="flex items-center space-x-4">
@@ -28,6 +32,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <User className="h-4 w-4" />
                 <span className="text-muted-foreground">{user.email}</span>
               </div>
+              <Link to="/organizations">
+                <Button variant="ghost" size="sm">
+                  <Users className="h-4 w-4 mr-2" />
+                  Organização
+                </Button>
+              </Link>
+              <Link to="/monitor">
+                <Button variant="ghost" size="sm">
+                  <Bot className="h-4 w-4 mr-2" />
+                  Chat
+                </Button>
+              </Link>
+              {/* <Link to="/openai-costs">
+                <Button variant="ghost" size="sm">
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Custos OpenAI
+                </Button>
+              </Link> */}
+              <Link to="/settings/theme">
+                <Button variant="ghost" size="sm">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Tema
+                </Button>
+              </Link>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sair

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, Bot, User, Loader2, AlertCircle, Trash2 } from 'lucide-react'
 import { useChatStore } from '@/stores/chatStore'
 import { Button } from './ui/Button'
+import { MessageFeedback } from './MessageFeedback'
+import { useChatStore as useChatStoreHook } from '@/stores/chatStore'
 
 export function ChatDrawer() {
   const {
@@ -16,6 +18,7 @@ export function ChatDrawer() {
     clearMessages,
     clearError,
   } = useChatStore()
+  const { currentSessionId } = useChatStoreHook.getState()
 
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -173,6 +176,17 @@ export function ChatDrawer() {
                         minute: '2-digit',
                       })}
                     </p>
+
+                    {message.role === 'assistant' && currentAgent && currentSessionId && (
+                      <div className="mt-3">
+                        <MessageFeedback
+                          messageId={message.id}
+                          agentId={currentAgent.id}
+                          conversationId={currentSessionId}
+                          blocks={[{ index: 0, content: message.content }]}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {message.role === 'user' && (

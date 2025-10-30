@@ -8,6 +8,7 @@ interface ChatStore {
   isDrawerOpen: boolean
   currentAgent: Agent | null
   currentSessionId: string | null
+  externalSessionId: string | null
   messages: ChatMessage[]
   isLoading: boolean
   error: string | null
@@ -19,6 +20,7 @@ interface ChatStore {
   loadSession: (sessionId: string) => Promise<void>
   clearMessages: () => Promise<void>
   clearError: () => void
+  setExternalSessionId: (sessionId: string | null) => void
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -26,18 +28,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   isDrawerOpen: false,
   currentAgent: null,
   currentSessionId: null,
+  externalSessionId: null,
   messages: [],
   isLoading: false,
   error: null,
 
   // Open chat drawer
   openChat: async (agent: Agent, sessionId?: string) => {
-    const user = useAuthStore.getState().user
-    if (!user) {
-      set({ error: 'User not authenticated' })
-      return
-    }
-
     set({ 
       isDrawerOpen: true, 
       currentAgent: agent, 
@@ -46,8 +43,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     })
 
     try {
-      // Get or create session
-      const sid = sessionId || await chatService.getOrCreateSession(agent.id, user.id)
+      // If sessionId provided (external session), use it without requiring auth
+      let sid = sessionId || null
+      if (!sid) {
+        const user = useAuthStore.getState().user
+        if (!user) {
+          set({ error: 'User not authenticated', isLoading: false })
+          return
+        }
+        // Get or create session for authenticated user
+        sid = await chatService.getOrCreateSession(agent.id, user.id)
+      }
       
       // Load messages
       const messages = await chatService.getMessages(sid)
@@ -185,6 +191,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Clear error
   clearError: () => {
     set({ error: null })
+  },
+
+  setExternalSessionId: (sessionId: string | null) => {
+    set({ externalSessionId: sessionId })
   },
 }))
 

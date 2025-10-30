@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Layout } from '@/components/Layout'
 import { FileUpload } from '@/components/FileUpload'
+import { UrlKnowledgeForm } from '@/components/UrlKnowledgeForm'
 import { documentService } from '@/services/documentService'
 import { 
   ArrowLeft, 
@@ -165,12 +166,22 @@ export function KnowledgeBase() {
         return
       }
 
+      // Buscar agent para pegar organization_id
+      const { data: agentData, error: agentError } = await supabase
+        .from('agents')
+        .select('organization_id')
+        .eq('id', id)
+        .single()
+
+      if (agentError) throw agentError
+
       // Criar nova base apenas se não existir nenhuma
       const { data, error } = await supabase
         .from('knowledge_bases')
         .insert([
           {
             agent_id: id,
+            organization_id: agentData.organization_id,
             name: 'Base Principal',
             description: 'Base de conhecimento principal do agente',
           },
@@ -387,6 +398,28 @@ export function KnowledgeBase() {
               <FileUpload 
                 knowledgeBaseId={selectedKB} 
                 onUploadComplete={handleUploadComplete}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Web Scraper - URL Knowledge */}
+        {selectedKB && id && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Base de Conhecimento via URL (Web Scraper)
+              </CardTitle>
+              <CardDescription>
+                Adicione URLs de páginas web para extração automática de conteúdo e vetorização
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UrlKnowledgeForm 
+                knowledgeBaseId={selectedKB}
+                agentId={id}
+                onSuccess={handleUploadComplete}
               />
             </CardContent>
           </Card>

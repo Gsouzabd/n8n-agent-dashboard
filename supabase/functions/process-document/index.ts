@@ -190,8 +190,8 @@ function extractTextFromXLSX(buffer: ArrayBuffer): string {
   }
 }
 
-// Gera embedding usando OpenAI
-async function generateEmbedding(text: string, openaiKey: string): Promise<number[]> {
+// Gera embedding usando OpenAI e retorna embedding + tokens usados
+async function generateEmbedding(text: string, openaiKey: string): Promise<{ embedding: number[], tokens: number }> {
   const response = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
     headers: {
@@ -199,8 +199,9 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<numbe
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'text-embedding-ada-002',
+      model: 'text-embedding-3-small', // 10x mais barato que ada-002!
       input: text.substring(0, 8000), // Limite de tokens
+      encoding_format: 'float',
     }),
   })
 
@@ -210,7 +211,10 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<numbe
   }
 
   const data = await response.json()
-  return data.data[0].embedding
+  return {
+    embedding: data.data[0].embedding,
+    tokens: data.usage?.total_tokens || 0,
+  }
 }
 
 serve(async (req) => {
@@ -234,15 +238,14 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const openaiKey = Deno.env.get('OPENAI_API_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get document info and agent_id
+    // Get document info, agent_id, and organization_id
     const { data: document, error: docError } = await supabase
       .from('knowledge_documents')
       .select(`
         *,
-        knowledge_bases!inner(agent_id)
+        knowledge_bases!inner(agent_id, organization_id)
       `)
       .eq('id', documentId)
       .single()
@@ -251,10 +254,29 @@ serve(async (req) => {
       throw new Error('Document not found')
     }
 
-    // Extract agent_id from knowledge_base
+    // Extract agent_id and organization_id from knowledge_base
     const agentId = document.knowledge_bases?.agent_id
+    const organizationId = document.knowledge_bases?.organization_id
+    
     if (!agentId) {
       throw new Error('Agent ID not found for this document')
+    }
+    
+    if (!organizationId) {
+      throw new Error('Organization ID not found for this document')
+    }
+
+    // Get OpenAI API key from organization
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('openai_api_key')
+      .eq('id', organizationId)
+      .single()
+    
+    const openaiKey = orgData?.openai_api_key
+    
+    if (!openaiKey) {
+      throw new Error('OpenAI API key not configured for this organization. Please add it in Organization Settings.')
     }
 
     // Update status to processing
@@ -303,11 +325,18 @@ serve(async (req) => {
 
     // Process each chunk - generate embedding and save
     const processedChunks = []
+    let totalTokens = 0
+    const embeddingModel = 'text-embedding-3-small'
+    
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
       
       try {
-        const embedding = await generateEmbedding(chunk.content, openaiKey)
+        console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}`)
+        const { embedding, tokens } = await generateEmbedding(chunk.content, openaiKey)
+        totalTokens += tokens
+        
+        console.log(`Chunk ${i + 1} embedded successfully (${tokens} tokens)`)
         
         // Create new document for each chunk (except first - update original)
         if (i === 0) {
@@ -317,10 +346,14 @@ serve(async (req) => {
             .update({
               content: chunk.content,
               embedding: JSON.stringify(embedding),
+              organization_id: organizationId,
+              agent_id: agentId,
               metadata: { 
                 ...document.metadata, 
                 ...chunk.metadata, 
                 agent_id: agentId,
+                organization_id: organizationId,
+                knowledge_base_id: knowledgeBaseId,
                 isFirstChunk: true 
               },
               processing_status: 'completed',
@@ -328,13 +361,15 @@ serve(async (req) => {
             })
             .eq('id', documentId)
           
-          processedChunks.push({ index: i, status: 'updated-original' })
+          processedChunks.push({ index: i, status: 'updated-original', tokens })
         } else {
           // Insert new document for additional chunks
           const { error: insertError } = await supabase
             .from('knowledge_documents')
             .insert({
               knowledge_base_id: knowledgeBaseId,
+              organization_id: organizationId,
+              agent_id: agentId,
               content: chunk.content,
               embedding: JSON.stringify(embedding),
               file_name: document.file_name,
@@ -343,6 +378,8 @@ serve(async (req) => {
               metadata: { 
                 ...chunk.metadata, 
                 agent_id: agentId,
+                organization_id: organizationId,
+                knowledge_base_id: knowledgeBaseId,
                 parentDocumentId: documentId, 
                 chunkOf: document.file_name 
               },
@@ -354,12 +391,43 @@ serve(async (req) => {
             throw insertError
           }
           
-          processedChunks.push({ index: i, status: 'inserted' })
+          processedChunks.push({ index: i, status: 'inserted', tokens })
         }
       } catch (chunkError) {
         console.error(`Error processing chunk ${i}:`, chunkError)
         processedChunks.push({ index: i, status: 'failed', error: chunkError.message })
       }
+    }
+
+    // Log OpenAI usage if embeddings were generated
+    if (totalTokens > 0) {
+      console.log(`Logging OpenAI usage: ${totalTokens} tokens`)
+      
+      const costUsd = await supabase.rpc('calculate_openai_cost', {
+        model_name: embeddingModel,
+        prompt_tokens: totalTokens,
+        completion_tokens: 0,
+      })
+
+      await supabase.from('openai_usage_logs').insert({
+        organization_id: organizationId,
+        agent_id: agentId,
+        operation_type: 'embedding',
+        model: embeddingModel,
+        prompt_tokens: totalTokens,
+        completion_tokens: 0,
+        total_tokens: totalTokens,
+        cost_usd: costUsd.data || 0,
+        knowledge_base_id: knowledgeBaseId,
+        chunks_processed: chunks.length,
+        metadata: {
+          file_name: document.file_name,
+          file_type: document.file_type,
+          document_id: documentId,
+        },
+      })
+
+      console.log(`✅ Logged OpenAI usage: ${totalTokens} tokens, $${costUsd.data?.toFixed(6) || 0}`)
     }
 
     return new Response(
@@ -370,6 +438,9 @@ serve(async (req) => {
         chunksProcessed: processedChunks.filter(c => c.status !== 'failed').length,
         chunksTotal: chunks.length,
         chunks: processedChunks,
+        openai_tokens: totalTokens,
+        openai_cost_usd: totalTokens > 0 ? (totalTokens / 1000000.0) * 0.02 : 0,
+        model_used: embeddingModel,
       }),
       {
         status: 200,

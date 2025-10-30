@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, File, FileText, Sheet, X, AlertCircle, Check, Loader2 } from 'lucide-react'
 import { Button } from './ui/Button'
+import { DocumentContextModal } from './DocumentContextModal'
 import { documentService } from '@/services/documentService'
 
 interface FileUploadProps {
@@ -15,6 +16,14 @@ interface UploadingFile {
   progress: number
   error?: string
   documentId?: string
+}
+
+interface DocumentContextData {
+  document_description: string
+  usage_context: string
+  usage_instructions: string
+  dialogue_examples: Array<{ user: string; ai: string }>
+  tags: string[]
 }
 
 const getFileIcon = (fileType: string) => {
@@ -34,11 +43,14 @@ const getFileColor = (fileType: string) => {
 export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, UploadingFile>>(new Map())
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [showContextModal, setShowContextModal] = useState(false)
+  const [pendingContext, setPendingContext] = useState<DocumentContextData | null>(null)
 
   const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30MB em bytes
 
-  const processFiles = useCallback(
-    async (files: FileList | File[]) => {
+  const selectFiles = useCallback(
+    (files: FileList | File[]) => {
       const fileArray = Array.from(files)
       
       // Filter supported files and ignore macOS metadata files
@@ -76,91 +88,99 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
         return
       }
 
-      // Add files to uploading state
+      // Show context modal for first file
+      if (supportedFiles.length > 0) {
+        setPendingFile(supportedFiles[0])
+        setShowContextModal(true)
+      }
+    },
+    [MAX_FILE_SIZE]
+  )
+
+  const handleContextSubmit = useCallback(
+    async (context: DocumentContextData) => {
+      if (!pendingFile) return
+
+      setShowContextModal(false)
+      setPendingContext(context)
+
+      const key = `${pendingFile.name}-${pendingFile.size}-${Date.now()}`
       const newUploading = new Map(uploadingFiles)
-      supportedFiles.forEach(file => {
-        const key = `${file.name}-${file.size}-${Date.now()}`
-        newUploading.set(key, {
-          file,
-          status: 'uploading',
-          progress: 0,
-        })
+      newUploading.set(key, {
+        file: pendingFile,
+        status: 'uploading',
+        progress: 0,
       })
       setUploadingFiles(newUploading)
 
-      // Process each file
-      for (const file of supportedFiles) {
-        const key = Array.from(newUploading.keys()).find(k => 
-          k.startsWith(`${file.name}-${file.size}`)
-        )
-        if (!key) continue
-
-        try {
-          // Upload file
-          setUploadingFiles(prev => {
-            const next = new Map(prev)
-            const item = next.get(key)
-            if (item) {
-              item.progress = 25
-            }
-            return next
-          })
-
-          const { documentId } = await documentService.uploadDocument(file, knowledgeBaseId)
-
-          // Update to processing
-          setUploadingFiles(prev => {
-            const next = new Map(prev)
-            const item = next.get(key)
-            if (item) {
-              item.status = 'processing'
-              item.progress = 50
-              item.documentId = documentId
-            }
-            return next
-          })
-
-          // Trigger processing
-          await documentService.processDocument(documentId, knowledgeBaseId)
-
-          // Update to completed
-          setUploadingFiles(prev => {
-            const next = new Map(prev)
-            const item = next.get(key)
-            if (item) {
-              item.status = 'completed'
-              item.progress = 100
-            }
-            return next
-          })
-
-          // Auto-remove after 3 seconds
-          setTimeout(() => {
-            setUploadingFiles(prev => {
-              const next = new Map(prev)
-              next.delete(key)
-              return next
-            })
-          }, 3000)
-
-          if (onUploadComplete) {
-            onUploadComplete()
+      try {
+        // Upload file with context
+        setUploadingFiles(prev => {
+          const next = new Map(prev)
+          const item = next.get(key)
+          if (item) {
+            item.progress = 25
           }
-        } catch (error) {
-          console.error('Upload error:', error)
+          return next
+        })
+
+        const { documentId } = await documentService.uploadDocument(pendingFile, knowledgeBaseId, context)
+
+        // Update to processing
+        setUploadingFiles(prev => {
+          const next = new Map(prev)
+          const item = next.get(key)
+          if (item) {
+            item.status = 'processing'
+            item.progress = 50
+            item.documentId = documentId
+          }
+          return next
+        })
+
+        // Trigger processing
+        await documentService.processDocument(documentId, knowledgeBaseId)
+
+        // Update to completed
+        setUploadingFiles(prev => {
+          const next = new Map(prev)
+          const item = next.get(key)
+          if (item) {
+            item.status = 'completed'
+            item.progress = 100
+          }
+          return next
+        })
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
           setUploadingFiles(prev => {
             const next = new Map(prev)
-            const item = next.get(key)
-            if (item) {
-              item.status = 'failed'
-              item.error = error instanceof Error ? error.message : 'Erro ao processar arquivo'
-            }
+            next.delete(key)
             return next
           })
+        }, 3000)
+
+        if (onUploadComplete) {
+          onUploadComplete()
         }
+      } catch (error) {
+        console.error('Upload error:', error)
+        setUploadingFiles(prev => {
+          const next = new Map(prev)
+          const item = next.get(key)
+          if (item) {
+            item.status = 'failed'
+            item.error = error instanceof Error ? error.message : 'Erro ao processar arquivo'
+          }
+          return next
+        })
+      } finally {
+        setPendingFile(null)
+        setPendingContext(null)
       }
     },
-    [knowledgeBaseId, uploadingFiles, onUploadComplete]
+    [pendingFile, knowledgeBaseId, uploadingFiles, onUploadComplete]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -183,22 +203,22 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
 
       const files = e.dataTransfer.files
       if (files.length > 0) {
-        processFiles(files)
+        selectFiles(files)
       }
     },
-    [processFiles]
+    [selectFiles]
   )
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files
       if (files && files.length > 0) {
-        processFiles(files)
+        selectFiles(files)
       }
       // Reset input
       e.target.value = ''
     },
-    [processFiles]
+    [selectFiles]
   )
 
   const removeFile = (key: string) => {
@@ -210,7 +230,20 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      {/* Context Modal */}
+      {showContextModal && pendingFile && (
+        <DocumentContextModal
+          fileName={pendingFile.name}
+          onSubmit={handleContextSubmit}
+          onCancel={() => {
+            setShowContextModal(false)
+            setPendingFile(null)
+          }}
+        />
+      )}
+
+      <div className="space-y-4">
       {/* Aviso sobre limite de arquivo */}
       <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start gap-3">
@@ -373,7 +406,8 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
           )
         })}
       </AnimatePresence>
-    </div>
+      </div>
+    </>
   )
 }
 

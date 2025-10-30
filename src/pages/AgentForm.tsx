@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOrganization } from '@/contexts/OrganizationContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -33,6 +34,7 @@ export function AgentForm() {
   const isEditing = !!id
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const { currentOrganization } = useOrganization()
   const [loading, setLoading] = useState(false)
   const [showJson, setShowJson] = useState(false)
 
@@ -77,6 +79,12 @@ export function AgentForm() {
 
   const onSubmit = async (data: AgentFormData) => {
     if (!user) return
+    
+    if (!currentOrganization) {
+      alert('Nenhuma organização selecionada. Por favor, selecione uma organização.')
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -91,7 +99,11 @@ export function AgentForm() {
       } else {
         const { error } = await supabase
           .from('agents')
-          .insert([{ ...data, user_id: user.id }])
+          .insert([{ 
+            ...data, 
+            user_id: user.id,
+            organization_id: currentOrganization.id 
+          }])
 
         if (error) throw error
         alert('Agente criado com sucesso!')
@@ -138,6 +150,11 @@ export function AgentForm() {
             <h1 className="text-3xl font-bold tracking-tight">
               {isEditing ? 'Editar Agente' : 'Novo Agente'}
             </h1>
+            {!isEditing && currentOrganization && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Criando na organização: <span className="font-medium text-foreground">{currentOrganization.name}</span>
+              </p>
+            )}
           </div>
           {isEditing && (
             <Button variant="outline" onClick={() => setShowJson(!showJson)}>
