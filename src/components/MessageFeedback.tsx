@@ -64,6 +64,8 @@ export function MessageFeedback({ messageId, agentId, conversationId, blocks }: 
         sessionId: conversationId,
         value: type === 'positive' ? 1 : -1,
       })
+      // notify listeners (Chat headers) to refresh badge
+      window.dispatchEvent(new CustomEvent('feedback:updated', { detail: { sessionId: conversationId } }))
     } catch (error) {
       console.error('Error submitting feedback:', error)
     }

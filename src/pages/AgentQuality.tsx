@@ -23,6 +23,7 @@ interface QualityMetrics {
 
 interface FeedbackItem {
   id: string
+  message_id: string
   feedback_type: 'positive' | 'negative'
   issue_category: string | null
   improvement_suggestion: string | null
@@ -42,6 +43,8 @@ export function AgentQuality() {
   const [issueCategory, setIssueCategory] = useState<string>('incorrect')
   const [suggestion, setSuggestion] = useState('')
   const [savingImprove, setSavingImprove] = useState(false)
+  const [viewConvoOpen, setViewConvoOpen] = useState(false)
+  const [viewConvoMessages, setViewConvoMessages] = useState<any[]>([])
 
   useEffect(() => {
     loadMetrics()
@@ -93,7 +96,7 @@ export function AgentQuality() {
       // Buscar feedbacks recentes com conteúdo da mensagem
       const { data: recents, error: recErr } = await supabase
         .from('message_feedback')
-        .select('id, feedback_type, issue_category, improvement_suggestion, block_index, created_at, chat_messages:message_id(content)')
+        .select('id, message_id, feedback_type, issue_category, improvement_suggestion, block_index, created_at, chat_messages:message_id(content)')
         .eq('agent_id', id)
         .order('created_at', { ascending: false })
         .limit(50)
@@ -466,7 +469,7 @@ export function AgentQuality() {
                           Mensagem: {content}
                         </div>
                       )}
-                      <div className="mt-2 flex items-center justify-end">
+                      <div className="mt-2 flex items-center justify-end gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -478,6 +481,36 @@ export function AgentQuality() {
                           }}
                         >
                           Melhorar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              // descobre a sessão a partir da mensagem
+                              if (!fb.message_id) {
+                                alert('Mensagem não encontrada para este feedback.')
+                                return
+                              }
+                              const { data: msg } = await supabase
+                                .from('chat_messages')
+                                .select('session_id')
+                                .eq('id', fb.message_id)
+                                .maybeSingle()
+                              if (!msg?.session_id) return
+                              const { data: msgs } = await supabase
+                                .from('chat_messages')
+                                .select('*')
+                                .eq('session_id', msg.session_id)
+                                .order('created_at', { ascending: true })
+                              setViewConvoMessages(msgs || [])
+                              setViewConvoOpen(true)
+                            } catch (e) {
+                              alert('Erro ao carregar conversa completa')
+                            }
+                          }}
+                        >
+                          Visualizar conversa completa
                         </Button>
                       </div>
                     </div>
@@ -584,6 +617,32 @@ export function AgentQuality() {
               >
                 Salvar
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {viewConvoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-3xl w-full">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+              <h3 className="text-lg font-semibold">Conversa completa</h3>
+              <button className="text-sm text-gray-500" onClick={() => setViewConvoOpen(false)}>Fechar</button>
+            </div>
+            <div className="p-4 max-h-[70vh] overflow-y-auto space-y-3">
+              {viewConvoMessages.map((m) => (
+                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                    m.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : m.role === 'human'
+                        ? 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
+                        : 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'
+                  }`}>
+                    <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                    <div className="text-[10px] opacity-60 mt-1">{new Date(m.created_at).toLocaleTimeString('pt-BR')}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

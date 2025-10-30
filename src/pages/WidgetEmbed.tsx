@@ -4,6 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { useChatStore } from '@/stores/chatStore'
 import { Agent, ChatMessage } from '@/types'
 import { Bot, User, Send, Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { chatService } from '@/services/chatService'
+import { MessageFeedback } from '@/components/MessageFeedback'
 
 export default function WidgetEmbed() {
   const { widgetId } = useParams()
@@ -11,6 +14,7 @@ export default function WidgetEmbed() {
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [feedbackStatus, setFeedbackStatus] = useState<'positive' | 'negative' | null>(null)
 
   const {
     messages,
@@ -19,6 +23,7 @@ export default function WidgetEmbed() {
     openChat,
     sendMessage,
     setExternalSessionId,
+    currentSessionId,
   } = useChatStore()
 
   useEffect(() => {
@@ -66,6 +71,27 @@ export default function WidgetEmbed() {
     init()
   }, [widgetId, openChat])
 
+  // Load feedback badge
+  useEffect(() => {
+    let mounted = true
+    const refresh = async () => {
+      try {
+        if (!currentSessionId) return
+        const status = await chatService.getActorSessionFeedback(currentSessionId)
+        if (mounted) setFeedbackStatus(status)
+      } catch {}
+    }
+    refresh()
+    const onUpdated = (e: any) => {
+      if (e?.detail?.sessionId === currentSessionId) refresh()
+    }
+    window.addEventListener('feedback:updated', onUpdated)
+    return () => {
+      mounted = false
+      window.removeEventListener('feedback:updated', onUpdated)
+    }
+  }, [currentSessionId])
+
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -107,6 +133,11 @@ export default function WidgetEmbed() {
           <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.name}</p>
           <p className="text-xs text-gray-500">Chat do agente</p>
         </div>
+        {feedbackStatus && (
+          <Badge variant="outline" className={`${feedbackStatus === 'positive' ? 'border-green-400 text-green-600 dark:text-green-300' : 'border-red-400 text-red-600 dark:text-red-300'}`}>
+            {feedbackStatus === 'positive' ? '👍' : '👎'}
+          </Badge>
+        )}
       </div>
 
       {/* Messages */}
@@ -123,6 +154,16 @@ export default function WidgetEmbed() {
             )}
             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === 'user' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'}`}>
               {m.content}
+              {m.role === 'assistant' && agent && currentSessionId && (
+                <div className="mt-2">
+                  <MessageFeedback
+                    messageId={m.id}
+                    agentId={agent.id}
+                    conversationId={currentSessionId}
+                    blocks={[{ index: 0, content: m.content }]}
+                  />
+                </div>
+              )}
             </div>
             {m.role === 'user' && (
               <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600">

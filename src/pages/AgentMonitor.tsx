@@ -7,6 +7,7 @@ import { Layout } from '@/components/Layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/badge'
+import { Instagram, MessageCircle } from 'lucide-react'
 import { chatService } from '@/services/chatService'
 
 type SessionRow = {
@@ -37,6 +38,7 @@ export function AgentMonitor() {
   const [sortBy, setSortBy] = useState<'recent' | 'alpha'>('recent')
   const [lastMessageBySession, setLastMessageBySession] = useState<Record<string, { role: MessageRow['role']; content: string; created_at: string }>>({})
   const [channelFilter, setChannelFilter] = useState<'all' | 'iframe' | 'whatsapp' | 'instagram'>('all')
+  const [feedbackBySession, setFeedbackBySession] = useState<Record<string, 'positive' | 'negative'>>({})
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -87,8 +89,26 @@ export function AgentMonitor() {
             }
           }
           setLastMessageBySession(map)
+          // Buscar feedback recente por sessão
+          const { data: fbs } = await supabase
+            .from('message_feedback')
+            .select('conversation_id, feedback_type, created_at')
+            .in('conversation_id', sessionIds)
+            .or('block_index.is.null,block_index.eq.0')
+            .order('created_at', { ascending: false })
+          const fbMap: Record<string, 'positive' | 'negative'> = {}
+          if (fbs) {
+            for (const r of fbs as any[]) {
+              const cid = r.conversation_id
+              if (!(cid in fbMap)) {
+                fbMap[cid] = r.feedback_type
+              }
+            }
+          }
+          setFeedbackBySession(fbMap)
         } else {
           setLastMessageBySession({})
+          setFeedbackBySession({})
         }
         if (data.length > 0) {
           setSelectedSessionId((prev) => prev || data[0].id)
@@ -130,6 +150,17 @@ export function AgentMonitor() {
                       created_at: lm[0].created_at as string,
                     },
                   }))
+                }
+                // Buscar feedback recente desta sessão
+                const { data: fbr } = await supabase
+                  .from('message_feedback')
+                  .select('feedback_type, created_at')
+                  .eq('conversation_id', updated.id)
+                  .or('block_index.is.null,block_index.eq.0')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                if (fbr && fbr.length > 0) {
+                  setFeedbackBySession((prev) => ({ ...prev, [updated.id]: fbr[0].feedback_type }))
                 }
               }
             }
@@ -240,31 +271,45 @@ export function AgentMonitor() {
               <CardHeader className="py-3 space-y-3 border-b border-orange-500/20 bg-gradient-to-r from-orange-500/5 to-transparent">
                 <CardTitle className="text-base">Conversas</CardTitle>
                 <div className="flex items-center gap-2 text-xs">
+                  {/* Todos */}
                   <button
-                    className={`px-2 py-1 rounded border ${channelFilter === 'all' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    className={`px-3 py-1.5 rounded-full shadow transition ${
+                      channelFilter === 'all'
+                        ? 'bg-gray-800 text-white shadow-gray-800/40 dark:bg-gray-200 dark:text-gray-900'
+                        : 'bg-gray-200 text-gray-800 hover:shadow-md dark:bg-gray-800 dark:text-gray-200'
+                    }`}
                     onClick={() => setChannelFilter('all')}
                   >
                     Todos
                   </button>
+                  {/* Iframe (App) */}
                   <button
-                    className={`px-2 py-1 rounded border ${channelFilter === 'iframe' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    className={`px-3 py-1.5 rounded-full shadow transition focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${
+                      channelFilter === 'iframe'
+                        ? 'bg-orange-600 text-white shadow-orange-500/40'
+                        : 'bg-orange-100 text-orange-700 hover:shadow-md dark:bg-orange-900/30 dark:text-orange-300'
+                    }`}
                     onClick={() => setChannelFilter('iframe')}
                   >
                     Iframe
                   </button>
+                  {/* WhatsApp (em breve) */}
                   <button
-                    className={`px-2 py-1 rounded border border-dashed text-gray-400 cursor-not-allowed`}
+                    className={`px-3 py-1.5 rounded-full shadow transition cursor-not-allowed opacity-60 bg-[#25D366] text-white shadow-green-500/30 flex items-center gap-1.5`}
                     title="Em breve"
                     disabled
                   >
-                    WhatsApp (em breve)
+                    <MessageCircle className="w-4 h-4" />
+                    <span>(soon)</span>
                   </button>
+                  {/* Instagram (em breve) */}
                   <button
-                    className={`px-2 py-1 rounded border border-dashed text-gray-400 cursor-not-allowed`}
+                    className={`px-3 py-1.5 rounded-full shadow transition cursor-not-allowed opacity-60 bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#515BD4] text-white shadow-pink-500/30 flex items-center gap-1.5`}
                     title="Em breve"
                     disabled
                   >
-                    Instagram (em breve)
+                    <Instagram className="w-4 h-4" />
+                    <span>(soon)</span>
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -298,9 +343,19 @@ export function AgentMonitor() {
                         <div className="text-sm font-medium flex items-center gap-2">
                           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" style={{ opacity: isActive(s.updated_at) ? 1 : 0.2 }} />
                           {s.id.slice(0, 8)}…
-                          <Badge variant="outline" className={`${lastMessageBySession[s.id]?.role === 'user' ? 'border-blue-400 text-blue-600 dark:text-blue-300' : lastMessageBySession[s.id]?.role === 'human' ? 'border-amber-500 text-amber-700 dark:text-amber-200' : 'border-gray-400 text-gray-600 dark:text-gray-300' }`}> 
+                          <Badge variant="outline" className={`${lastMessageBySession[s.id]?.role === 'user' ? 'border-blue-400 text-blue-600 dark:text-blue-300' : lastMessageBySession[s.id]?.role === 'human' ? 'border-amber-500 text-amber-700 dark:text-amber-200' : 'border-gray-400 text-gray-600 dark:text-gray-300' }`}>
                             {lastMessageBySession[s.id]?.role === 'user' ? 'user' : lastMessageBySession[s.id]?.role === 'human' ? 'human' : 'ai'}
                           </Badge>
+                          {feedbackBySession[s.id] && (
+                            <Badge variant="outline" className={`${feedbackBySession[s.id] === 'positive' ? 'border-green-400 text-green-600 dark:text-green-300' : 'border-red-400 text-red-600 dark:text-red-300'}`}>
+                              {feedbackBySession[s.id] === 'positive' ? '👍' : '👎'}
+                            </Badge>
+                          )}
+                          { (s as any).external_session_id ? (
+                            <Badge variant="outline" className="border-indigo-400 text-indigo-700 dark:text-indigo-300">Iframe</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-gray-300 text-gray-600 dark:text-gray-300">App</Badge>
+                          )}
                         </div>
                         <div className="text-[10px] text-gray-500">{new Date(s.updated_at).toLocaleTimeString('pt-BR')}</div>
                       </div>
@@ -319,7 +374,7 @@ export function AgentMonitor() {
 
           <div className="md:col-span-2">
             <Card className="overflow-hidden border border-orange-500/30 shadow-2xl shadow-orange-500/20">
-              <CardHeader className="py-3">
+              <CardHeader className="flex flex-col space-y-1.5 p-6 py-3 border-b border-orange-500/40 shadow-md shadow-orange-500/20">
                 <div>
                   {selectedAgent ? (
                     <div className="text-sm text-gray-600 dark:text-gray-300">Agente: {selectedAgent.name}</div>

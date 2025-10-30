@@ -225,6 +225,31 @@ export const chatService = {
   },
 
   /**
+   * Get actor's overall feedback for a session (block_index null/0 across messages)
+   */
+  async getActorSessionFeedback(sessionId: string): Promise<'positive' | 'negative' | null> {
+    const { data: userRes } = await supabase.auth.getUser()
+    const userId = userRes?.user?.id ?? null
+
+    let query = supabase
+      .from('message_feedback')
+      .select('feedback_type, created_at')
+      .eq('conversation_id', sessionId)
+      .or('block_index.is.null,block_index.eq.0')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (userId) query = query.eq('user_id', userId)
+    else query = query.eq('session_id', sessionId)
+
+    const { data, error } = await query
+    if (error) return null
+    if (!data || data.length === 0) return null
+    const type = data[0].feedback_type as 'positive' | 'negative'
+    return type ?? null
+  },
+
+  /**
    * Save a message to the database
    */
   async saveMessage(
@@ -363,6 +388,34 @@ export const chatService = {
       console.error('Error deleting session:', error)
       throw new Error('Failed to delete session')
     }
+  },
+
+  /**
+   * Get actor's (user or external session) last feedback value for a session
+   */
+  async getActorSessionFeedback(sessionId: string): Promise<'positive' | 'negative' | null> {
+    const { data: userRes } = await supabase.auth.getUser()
+    const userId = userRes?.user?.id ?? null
+
+    let query = supabase
+      .from('message_feedback')
+      .select('feedback_type, value')
+      .eq('conversation_id', sessionId)
+      .or('block_index.is.null,block_index.eq.0')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (userId) query = query.eq('user_id', userId)
+    else query = query.eq('session_id', sessionId)
+
+    const { data, error } = await query
+    if (error) return null
+    if (!data || data.length === 0) return null
+
+    const row = data[0] as any
+    if (row.value === 1 || row.feedback_type === 'positive') return 'positive'
+    if (row.value === -1 || row.feedback_type === 'negative') return 'negative'
+    return null
   },
 }
 

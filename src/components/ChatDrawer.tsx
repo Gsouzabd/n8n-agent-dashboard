@@ -4,6 +4,8 @@ import { X, Send, Bot, User, Loader2, AlertCircle, Trash2 } from 'lucide-react'
 import { useChatStore } from '@/stores/chatStore'
 import { Button } from './ui/Button'
 import { MessageFeedback } from './MessageFeedback'
+import { Badge } from './ui/badge'
+import { chatService } from '@/services/chatService'
 import { useChatStore as useChatStoreHook } from '@/stores/chatStore'
 
 export function ChatDrawer() {
@@ -23,6 +25,7 @@ export function ChatDrawer() {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [feedbackStatus, setFeedbackStatus] = useState<'positive' | 'negative' | null>(null)
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -37,6 +40,27 @@ export function ChatDrawer() {
       setTimeout(() => inputRef.current?.focus(), 300)
     }
   }, [isDrawerOpen])
+
+  // Load feedback badge when session changes
+  useEffect(() => {
+    let mounted = true
+    const refresh = async () => {
+      try {
+        if (!currentSessionId) return
+        const status = await chatService.getActorSessionFeedback(currentSessionId)
+        if (mounted) setFeedbackStatus(status)
+      } catch {}
+    }
+    refresh()
+    const onUpdated = (e: any) => {
+      if (e?.detail?.sessionId === currentSessionId) refresh()
+    }
+    window.addEventListener('feedback:updated', onUpdated)
+    return () => {
+      mounted = false
+      window.removeEventListener('feedback:updated', onUpdated)
+    }
+  }, [currentSessionId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,7 +100,7 @@ export function ChatDrawer() {
             className="fixed right-0 top-14 h-[95vh] w-full sm:w-[500px] bg-black/95 backdrop-blur-2xl border-l border-orange-500/40 shadow-2xl shadow-orange-500/20 z-50 flex flex-col"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-orange-500/30 bg-gradient-to-r from-orange-500/10 to-transparent">
+            <div className="flex items-center justify-between p-6 py-3 border-b border-orange-500/40 bg-gradient-to-r from-orange-500/10 to-transparent shadow-md shadow-orange-500/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30">
                   <Bot className="w-5 h-5 text-orange-500" />
@@ -89,6 +113,11 @@ export function ChatDrawer() {
                     {isLoading ? 'Pensando...' : 'Online'}
                   </p>
                 </div>
+                {feedbackStatus && (
+                  <Badge variant="outline" className={`${feedbackStatus === 'positive' ? 'border-green-400 text-green-400' : 'border-red-400 text-red-400'}`}>
+                    {feedbackStatus === 'positive' ? '👍' : '👎'}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
