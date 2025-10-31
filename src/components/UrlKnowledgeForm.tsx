@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { Textarea } from './ui/Textarea'
 import { supabase } from '@/lib/supabase'
-import { Globe, Plus, Loader2, Check, X, RefreshCw } from 'lucide-react'
+import { Globe, Plus, Loader2, X, RefreshCw } from 'lucide-react'
 
 interface UrlKnowledgeFormProps {
   knowledgeBaseId: string
@@ -35,6 +35,7 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
   const [loading, setLoading] = useState(false)
   const [urls, setUrls] = useState<KnowledgeUrl[]>([])
   const [loadingUrls, setLoadingUrls] = useState(true)
+  const [showAntiScraperHelp, setShowAntiScraperHelp] = useState(false)
 
   // Load URLs on mount
   useEffect(() => {
@@ -58,6 +59,14 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
       setLoadingUrls(false)
     }
   }
+
+  const antiScraperFailures = useMemo(() => {
+    return urls.filter(u =>
+      u.status === 'failed' &&
+      (u.error_message?.toLowerCase().includes('bloqueio') ||
+       u.error_message?.toLowerCase().includes('insuficiente'))
+    )
+  }, [urls])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,7 +129,7 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
     }
   }
 
-  const handleRetry = async (urlId: string) => {
+  const handleRetry = async (urlId: string, forcePrerender?: boolean) => {
     try {
       await supabase
         .from('knowledge_urls')
@@ -128,7 +137,7 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
         .eq('id', urlId)
 
       const { error } = await supabase.functions.invoke('web-scraper', {
-        body: { urlId },
+        body: { urlId, forcePrerender: !!forcePrerender },
       })
 
       if (error) throw error
@@ -259,6 +268,31 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
         </form>
       )}
 
+      {/* Anti-scraper notice */}
+      {antiScraperFailures.length > 0 && (
+        <div className="p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-100">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-sm">
+              Detectamos {antiScraperFailures.length} URL(s) com possível bloqueio anti‑scraper ou conteúdo insuficiente. Você pode tentar reprocessar (compatibilidade), remover e adicionar novamente, ou enviar o conteúdo como arquivo.
+            </div>
+            <button
+              type="button"
+              className="text-xs underline hover:opacity-80"
+              onClick={() => setShowAntiScraperHelp(!showAntiScraperHelp)}
+            >
+              {showAntiScraperHelp ? 'Ocultar dicas' : 'Saiba como contornar'}
+            </button>
+          </div>
+          {showAntiScraperHelp && (
+            <ul className="mt-2 text-xs list-disc pl-5 space-y-1">
+              <li>Tente Reprocessar (modo compatibilidade); se persistir, Remover e adicionar novamente a URL.</li>
+              <li>Se o site bloquear scrapers, faça upload de um arquivo (.pdf/.txt) com o conteúdo.</li>
+              <li>Quando disponível, prefira consumir dados via API do site em vez de HTML.</li>
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* URLs List */}
       <div className="space-y-2">
         {loadingUrls ? (
@@ -282,6 +316,11 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
                       {urlRecord.page_title || urlRecord.url}
                     </h4>
                     {getStatusBadge(urlRecord.status)}
+                    {urlRecord.status === 'failed' && (urlRecord.error_message?.toLowerCase().includes('insuficiente') || urlRecord.error_message?.toLowerCase().includes('bloqueio')) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                        Possível anti‑scraper
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{urlRecord.url}</p>
                   {urlRecord.document_description && (
@@ -292,11 +331,21 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
                 </div>
 
                 <div className="flex gap-2 flex-shrink-0">
-                  {urlRecord.status === 'failed' && (
-                    <Button variant="ghost" size="sm" onClick={() => handleRetry(urlRecord.id)}>
+                    {urlRecord.status === 'failed' && (
+                      <Button variant="ghost" size="sm" onClick={() => handleRetry(urlRecord.id, true)}>
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   )}
+                    {urlRecord.status === 'completed' && (urlRecord.word_count ?? 0) < 50 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRetry(urlRecord.id, true)}
+                        title="Reprocessar em modo compatibilidade"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    )}
                   <Button variant="ghost" size="sm" onClick={() => handleDelete(urlRecord.id)}>
                     <X className="h-4 w-4 text-red-500" />
                   </Button>
@@ -308,6 +357,11 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
                   <span>{urlRecord.word_count?.toLocaleString()} palavras</span>
                   <span>{urlRecord.chunks_generated} chunks</span>
                   {urlRecord.auto_refresh && <span>🔄 Auto-atualização ativa</span>}
+                  {(urlRecord.word_count ?? 0) < 50 && (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                      Conteúdo possivelmente bloqueado (use Reprocessar)
+                    </span>
+                  )}
                 </div>
               )}
 

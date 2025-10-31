@@ -224,30 +224,7 @@ export const chatService = {
     return data || []
   },
 
-  /**
-   * Get actor's overall feedback for a session (block_index null/0 across messages)
-   */
-  async getActorSessionFeedback(sessionId: string): Promise<'positive' | 'negative' | null> {
-    const { data: userRes } = await supabase.auth.getUser()
-    const userId = userRes?.user?.id ?? null
-
-    let query = supabase
-      .from('message_feedback')
-      .select('feedback_type, created_at')
-      .eq('conversation_id', sessionId)
-      .or('block_index.is.null,block_index.eq.0')
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (userId) query = query.eq('user_id', userId)
-    else query = query.eq('session_id', sessionId)
-
-    const { data, error } = await query
-    if (error) return null
-    if (!data || data.length === 0) return null
-    const type = data[0].feedback_type as 'positive' | 'negative'
-    return type ?? null
-  },
+  
 
   /**
    * Save a message to the database
@@ -257,13 +234,23 @@ export const chatService = {
     role: 'user' | 'assistant' | 'human',
     content: string
   ): Promise<ChatMessage> {
+    const { data: authRes } = await supabase.auth.getUser()
+    const authorId = authRes?.user?.id ?? null
+    const meta = (authRes?.user as any)?.user_metadata || {}
+    const authorName: string | null = (meta.name || meta.full_name || authRes?.user?.email || null) ?? null
+    const insertPayload: Record<string, unknown> = {
+      session_id: sessionId,
+      role,
+      content,
+    }
+    if (role === 'human') {
+      if (authorId) insertPayload['author_user_id'] = authorId
+      if (authorName) insertPayload['author_name'] = authorName
+    }
+
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert({
-        session_id: sessionId,
-        role,
-        content,
-      })
+      .insert(insertPayload)
       .select()
       .single()
 

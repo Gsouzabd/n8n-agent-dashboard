@@ -210,7 +210,7 @@ Responda ao webhook original:
 ### cURL
 ```bash
 curl -X POST https://gsouzabd.app.n8n.cloud/webhook/agent-helper \
-  -u "paprica:bdhhqafyqyamcejkufxf" \
+  -u "worskpace-agent:password" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Como faço para resetar minha senha?",
@@ -224,7 +224,7 @@ const response = await fetch('https://gsouzabd.app.n8n.cloud/webhook/agent-helpe
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Basic ' + btoa('paprica:bdhhqafyqyamcejkufxf')
+    'Authorization': 'Basic ' + btoa('worskpace-agent:password')
   },
   body: JSON.stringify({
     query: 'Como faço para resetar minha senha?',

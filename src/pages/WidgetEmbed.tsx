@@ -98,6 +98,30 @@ export default function WidgetEmbed() {
     }
   }, [messages])
 
+  // Realtime: refletir intervenções humanas e outras mensagens inseridas externamente
+  useEffect(() => {
+    if (!currentSessionId) return
+    const channel = supabase
+      .channel(`widget-session-${currentSessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `session_id=eq.${currentSessionId}` },
+        (payload) => {
+          const msg = payload.new as unknown as ChatMessage
+          const prev = useChatStore.getState().messages
+          // evita duplicar se a mensagem já estiver no estado
+          if (!prev.find((m: any) => m.id === (msg as any).id)) {
+            useChatStore.setState({ messages: [...prev, msg] })
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      if (channel) supabase.removeChannel(channel)
+    }
+  }, [currentSessionId])
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
@@ -145,33 +169,43 @@ export default function WidgetEmbed() {
         {error && (
           <div className="p-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded">{error}</div>
         )}
-        {messages.map((m: ChatMessage) => (
-          <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {m.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30">
-                <Bot className="w-3.5 h-3.5 text-orange-600" />
+        {messages.map((m: ChatMessage) => {
+          const isUser = m.role === 'user'
+          const isAssistant = m.role === 'assistant'
+          const isHuman = m.role === 'human'
+          const isAgentLike = isAssistant || isHuman
+          const bubbleClass = isUser
+            ? 'bg-orange-600 text-white'
+            : 'bg-gray-100 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'
+
+          return (
+            <div key={m.id} className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+              {isAgentLike && (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30">
+                  <Bot className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+              )}
+              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${bubbleClass}`}>
+                {m.content}
+                {isAssistant && agent && currentSessionId && (
+                  <div className="mt-2">
+                    <MessageFeedback
+                      messageId={m.id}
+                      agentId={agent.id}
+                      conversationId={currentSessionId}
+                      blocks={[{ index: 0, content: m.content }]}
+                    />
+                  </div>
+                )}
               </div>
-            )}
-            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === 'user' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'}`}>
-              {m.content}
-              {m.role === 'assistant' && agent && currentSessionId && (
-                <div className="mt-2">
-                  <MessageFeedback
-                    messageId={m.id}
-                    agentId={agent.id}
-                    conversationId={currentSessionId}
-                    blocks={[{ index: 0, content: m.content }]}
-                  />
+              {isUser && (
+                <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600">
+                  <User className="w-3.5 h-3.5 text-gray-300" />
                 </div>
               )}
             </div>
-            {m.role === 'user' && (
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600">
-                <User className="w-3.5 h-3.5 text-gray-300" />
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
         {isLoading && (
           <div className="flex gap-2">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30">

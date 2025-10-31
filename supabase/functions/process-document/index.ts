@@ -2,12 +2,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // @deno-types="npm:@types/pdf-parse"
 import pdfParse from 'npm:pdf-parse@1.1.1'
+// Fallback extractor using pdfjs-dist when pdf-parse returns empty
+import * as pdfjsLib from 'npm:pdfjs-dist@3.11.174/build/pdf.mjs'
 import mammoth from 'npm:mammoth@1.6.0'
 import * as XLSX from 'npm:xlsx@0.18.5'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, accept, x-supabase-authorization',
+  'Access-Control-Max-Age': '86400',
 }
 
 interface ChunkResult {
@@ -139,12 +143,169 @@ function intelligentChunk(text: string, fileName: string): ChunkResult[] {
 }
 
 // Extrai texto de PDF
-async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+async function extractTextFromPDF(buffer: ArrayBuffer, ctx?: { supabase?: any, filePath?: string }): Promise<string> {
   try {
     // Deno não tem Buffer global - converte ArrayBuffer para Uint8Array
     const uint8Array = new Uint8Array(buffer)
     const data = await pdfParse(uint8Array)
-    return data.text
+    let text = data.text || ''
+    if (text.trim().length === 0) {
+      // Fallback: tenta extrair via pdfjs-dist
+      try {
+        const doc = await pdfjsLib.getDocument({ data: buffer }).promise
+        const numPages = doc.numPages
+        let out = ''
+        for (let i = 1; i <= numPages; i++) {
+          const page = await doc.getPage(i)
+          const content = await page.getTextContent()
+          const strings = content.items.map((item: any) => (item.str || '')).join(' ')
+          out += strings + '\n'
+        }
+        text = out
+      } catch (pdfjsErr) {
+        console.warn('pdfjs-dist fallback failed:', pdfjsErr)
+      }
+    }
+
+    // Mistral OCR fallback (preferido quando configurado)
+    if (text.trim().length === 0) {
+      const mistralKey = Deno.env.get('MISTRAL_API_KEY')
+      if (mistralKey && ctx?.supabase && ctx?.filePath) {
+        try {
+          // Gera URL assinada do arquivo no Storage para o Mistral consumir
+          const { data: signed, error: signedErr } = await ctx.supabase
+            .storage
+            .from('knowledge-documents')
+            .createSignedUrl(ctx.filePath, 60 * 60) // 1 hora
+
+          if (!signedErr && signed?.signedUrl) {
+            // Verifica se a URL assinada está acessível externamente
+            try {
+              const head = await fetch(signed.signedUrl, { method: 'HEAD' })
+              if (!head.ok) {
+                console.warn('Signed URL not accessible (HEAD):', head.status, head.statusText)
+              }
+            } catch (headErr) {
+              console.warn('Signed URL HEAD check failed:', headErr)
+            }
+            const resp = await fetch('https://api.mistral.ai/v1/ocr', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${mistralKey}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'mistral-ocr-latest',
+                document: { type: 'document_url', document_url: signed.signedUrl },
+                include_image_base64: true,
+              }),
+            })
+
+            const json = await resp.json()
+            if (!resp.ok) {
+              console.warn('Mistral OCR error:', json)
+            } else {
+              // Tenta normalizar campos comuns de OCR: pages[].text ou text
+              let ocrText = ''
+              if (Array.isArray(json?.pages)) {
+                ocrText = json.pages
+                  .map((p: any) => {
+                    // Coleta textos conhecidos no nível da página
+                    const direct = [p?.text, p?.content]
+                      .filter((v: any) => typeof v === 'string')
+                      .join('\n')
+                    // Coleta textos em estruturas aninhadas (blocks, paragraphs, lines)
+                    const nestedSources = [p?.blocks, p?.paragraphs, p?.lines, p?.items, p?.content]
+                    const nested = nestedSources
+                      .filter(Boolean)
+                      .flat()
+                      .map((n: any) => (n?.text || n?.content || ''))
+                      .filter((s: any) => typeof s === 'string')
+                      .join('\n')
+                    return [direct, nested].filter(Boolean).join('\n')
+                  })
+                  .filter((s: any) => typeof s === 'string')
+                  .join('\n')
+              }
+              if (!ocrText && typeof json?.text === 'string') {
+                ocrText = json.text
+              }
+              if (!ocrText && typeof json?.result === 'string') {
+                ocrText = json.result
+              }
+              if (!ocrText && json) {
+                // Coletor genérico: varre o objeto e junta todos os campos 'text'/'content' string
+                const collect = (obj: any): string[] => {
+                  const acc: string[] = []
+                  if (obj && typeof obj === 'object') {
+                    if (Array.isArray(obj)) {
+                      for (const item of obj) acc.push(...collect(item))
+                    } else {
+                      for (const [k, v] of Object.entries(obj)) {
+                        if ((k.includes('text') || k.includes('content')) && typeof v === 'string') {
+                          acc.push(v)
+                        } else if (v && typeof v === 'object') {
+                          acc.push(...collect(v))
+                        }
+                      }
+                    }
+                  }
+                  return acc
+                }
+                const found = collect(json)
+                if (found.length > 0) {
+                  ocrText = found.join('\n')
+                }
+              }
+              if (ocrText && ocrText.trim().length > 0) {
+                text = ocrText
+              }
+            }
+          }
+        } catch (mErr) {
+          console.warn('Mistral OCR fallback failed:', mErr)
+        }
+      }
+    }
+
+    // OCR fallback (para PDFs escaneados sem texto) usando OCR.Space
+    if (text.trim().length === 0) {
+      const ocrKey = Deno.env.get('OCR_SPACE_API_KEY')
+      if (ocrKey) {
+        try {
+          const form = new FormData()
+          form.append('language', 'por')
+          form.append('isOverlayRequired', 'false')
+          form.append('OCREngine', '2')
+          form.append('scale', 'true')
+          const blob = new Blob([buffer], { type: 'application/pdf' })
+          form.append('file', blob, 'document.pdf')
+
+          const resp = await fetch('https://api.ocr.space/parse/image', {
+            method: 'POST',
+            headers: { 'apikey': ocrKey },
+            body: form,
+          })
+
+          const json = await resp.json()
+          if (!resp.ok || json?.IsErroredOnProcessing) {
+            console.warn('OCR.space error:', json?.ErrorMessage || json)
+          } else {
+            const parsed = (json?.ParsedResults || [])
+              .map((r: any) => r?.ParsedText || '')
+              .join('\n')
+              .trim()
+            if (parsed && parsed.length > 0) {
+              text = parsed
+            }
+          }
+        } catch (ocrErr) {
+          console.warn('OCR.space fallback failed:', ocrErr)
+        }
+      }
+    }
+    return text
   } catch (error) {
     console.error('PDF parse error:', error)
     throw new Error('Failed to parse PDF: ' + error.message)
@@ -302,7 +463,7 @@ serve(async (req) => {
     const fileType = document.file_type || ''
 
     if (fileType.includes('pdf')) {
-      extractedText = await extractTextFromPDF(arrayBuffer)
+      extractedText = await extractTextFromPDF(arrayBuffer, { supabase, filePath: document.file_path })
     } else if (fileType.includes('wordprocessingml')) {
       extractedText = await extractTextFromDOCX(arrayBuffer)
     } else if (fileType.includes('spreadsheetml')) {
@@ -315,7 +476,12 @@ serve(async (req) => {
     }
 
     if (!extractedText || extractedText.trim().length === 0) {
-      throw new Error('No text extracted from document')
+      const mistralConfigured = !!Deno.env.get('MISTRAL_API_KEY')
+      const ocrSpaceConfigured = !!Deno.env.get('OCR_SPACE_API_KEY')
+      const attempts = ['pdf-parse', 'pdfjs']
+      if (mistralConfigured) attempts.push('mistral-ocr')
+      if (ocrSpaceConfigured) attempts.push('ocr-space')
+      throw new Error(`No text extracted from document (attempts: ${attempts.join(', ')})`)
     }
 
     // Chunk the text

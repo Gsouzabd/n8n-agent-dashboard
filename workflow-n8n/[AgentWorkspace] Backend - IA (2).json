@@ -50,7 +50,7 @@
               "value": "https://bdhhqafyqyamcejkufxf.supabase.co"
             },
             {
-              "name": "SUPABASE_SERVICE_ROLE_KEY ",
+          "name": "SUPABASE_SERVICE_ROLE_KEY",
               "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkaGhxYWZ5cXlhbWNlamt1ZnhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMTkzMzUsImV4cCI6MjA3Njg5NTMzNX0.FH5j2uCOc2wDIXFu6ByJJBTL9dmiSMbefTtM7va7dfE"
             }
           ]
@@ -86,7 +86,7 @@
         "promptType": "define",
         "text": "={{ $('Extract Data').item.json.body.message }}",
         "options": {
-          "systemMessage": "={{ $json.system_prompt }}\n\n## REGRAS PRIMORDIAIS\n— Antes de responder a qualquer pergunta, consulte a base: Use a ferramenta **SupabaseVectorStore** para buscar informações na knowledge base.\n\n- Quando nao houver informaçao na base de conhecimento (SupabaseVectorStore) Use a ferramenta **aiNeedsHelp**  para chamar um atendente humano. Jamais, em hipótese algum, invente uma informaçao que nao tem embasamento na base de conhecimento (SupabaseVectorStore)."
+          "systemMessage": "={{ $json.system_prompt }}\n\n## REGRAS PRIMORDIAIS\n— Antes de responder a qualquer pergunta, consulte a base: Use a ferramenta **SupabaseVectorStore** para buscar informações na knowledge base.\n\n- Quando nao houver informaçao na base de conhecimento (SupabaseVectorStore) Use a ferramenta **aiNeedsHelp**  para chamar um atendente humano. Jamais, em hipótese algum, invente uma informaçao que nao tem embasamento na base de conhecimento (SupabaseVectorStore).\n\nContexto recente (inclusive intervenções humanas):\n{{ $('Build History').item.json.historyText }}\n---"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -289,7 +289,7 @@
         "promptType": "define",
         "text": "={{ $('Extract Data').item.json.body.message }}",
         "options": {
-          "systemMessage": "Você é um supervisor. Siga estritamente:\n1) Consulte primeiro a base usando a tool \"SupabaseVectorStore\".\n2) Se a base não tiver contexto suficiente ou não retornar resultados relevantes, retorne HANDOFF\n3) Após executar as tools, responda SOMENTE com uma destas strings:\n- PROCEED (se a base for suficiente)\n- HANDOFF (se nao for suficiente)\nNunca responda ao usuário final, não explique seus passos."
+          "systemMessage": "Você é um supervisor. Siga estritamente:\n1) Consulte primeiro a base usando a tool \"SupabaseVectorStore\".\n2) Se a base não tiver contexto suficiente ou não retornar resultados relevantes, retorne HANDOFF\n3) Após executar as tools, responda SOMENTE com uma destas strings:\n- PROCEED (se a base for suficiente)\n- HANDOFF (se nao for suficiente)\nNunca responda ao usuário final, não explique seus passos.\n\nContexto recente (inclusive intervenções humanas):\n{{ $('Build History').item.json.historyText }}\n---"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -371,7 +371,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $('Extract Data').item.json[\"SUPABASE_SERVICE_ROLE_KEY \"] }}"
+              "value": "=Bearer {{ $('Extract Data').item.json[\"SUPABASE_SERVICE_ROLE_KEY\"] }}"
             }
           ]
         },
@@ -406,6 +406,103 @@
       ],
       "id": "788fc664-7738-4dc7-82fe-b78c5485345e",
       "name": "aiNeedsHelp1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "human_assist_requests",
+        "filters": {
+          "conditions": [
+            { "keyName": "agent_id", "keyValue": "={{ $json.body.agent_id }}" },
+            { "keyName": "session_id", "keyValue": "={{ $json.body.session_id }}" },
+            { "keyName": "status", "keyValue": "pending" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [ -1712, -272 ],
+      "id": "9f5e7b6b-0d8f-47f5-9c3b-8d2c8a7e9a11",
+      "name": "Check Open Assists Pending",
+      "credentials": { "supabaseApi": { "id": "EOGJkdSrjuR27Pf6", "name": "[PAP][mag] SUPABASE" } }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "human_assist_requests",
+        "filters": {
+          "conditions": [
+            { "keyName": "agent_id", "keyValue": "={{ $json.body.agent_id }}" },
+            { "keyName": "session_id", "keyValue": "={{ $json.body.session_id }}" },
+            { "keyName": "status", "keyValue": "in_progress" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [ -1568, -272 ],
+      "id": "d0a4a2d1-2d7c-4f3e-bf9e-3d3c7b6e2c22",
+      "name": "Check Open Assists InProgress",
+      "credentials": { "supabaseApi": { "id": "EOGJkdSrjuR27Pf6", "name": "[PAP][mag] SUPABASE" } }
+    },
+    {
+      "parameters": {
+        "values": { "string": [ { "name": "assistOpen", "value": "={{ ( $items(\\\"Check Open Assists Pending\\\").length > 0 || $items(\\\"Check Open Assists InProgress\\\").length > 0 ) ? 'yes' : 'no' }}" } ] },
+        "options": {}
+      },
+      "id": "a2a5b3f8-1f6e-4a28-9b0a-6e7f5b2c3d44",
+      "name": "Calc Assist Gate",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [ -1408, -272 ]
+    },
+    {
+      "parameters": {
+        "conditions": { "string": [ { "value1": "={{ $json.assistOpen }}", "value2": "yes" } ] }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [ -1264, -272 ],
+      "id": "b7c9f2a1-9b0d-4a6e-8f1b-3c2d1e4f5a66",
+      "name": "If Assist Open"
+    },
+    {
+      "parameters": {
+        "values": { "string": [
+          { "name": "response", "value": "Um atendente humano está atendendo agora." },
+          { "name": "session_id", "value": "={{ $('Extract Data').item.json.body.session_id }}" }
+        ] },
+        "options": {}
+      },
+      "id": "c4d5e6f7-8a9b-4c0d-b1a2-3e4f5a6b7c88",
+      "name": "Format Response HumanTakingOver",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [ -1072, -336 ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "chat_messages",
+        "filters": { "conditions": [ { "keyName": "session_id", "keyValue": "={{ $json.body.session_id }}" } ] }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [ -1072, -192 ],
+      "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a55",
+      "name": "Fetch Chat History",
+      "credentials": { "supabaseApi": { "id": "EOGJkdSrjuR27Pf6", "name": "[PAP][mag] SUPABASE" } }
+    },
+    {
+      "parameters": {
+        "values": { "string": [ { "name": "historyText", "value": "={{ $('Fetch Chat History').all().map(i => `[${i.json.role === 'human' ? 'assistant' : i.json.role}] ${i.json.content}`).join('\\n') }}" } ] },
+        "options": {}
+      },
+      "id": "f6a7b8c9-d0e1-4f2a-93b4-5c6d7e8f9a00",
+      "name": "Build History",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [ -928, -192 ]
     }
   ],
   "pinData": {
@@ -545,11 +642,59 @@
     "getAgentConfigs": {
       "main": [
         [
-          {
-            "node": "Supervisor Agent",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Check Open Assists Pending", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Open Assists Pending": {
+      "main": [
+        [
+          { "node": "Check Open Assists InProgress", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Open Assists InProgress": {
+      "main": [
+        [
+          { "node": "Calc Assist Gate", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Calc Assist Gate": {
+      "main": [
+        [
+          { "node": "If Assist Open", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "If Assist Open": {
+      "main": [
+        [
+          { "node": "Format Response HumanTakingOver", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Fetch Chat History", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format Response HumanTakingOver": {
+      "main": [
+        [
+          { "node": "Respond to Webhook", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Chat History": {
+      "main": [
+        [
+          { "node": "Build History", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build History": {
+      "main": [
+        [
+          { "node": "Supervisor Agent", "type": "main", "index": 0 }
         ]
       ]
     },

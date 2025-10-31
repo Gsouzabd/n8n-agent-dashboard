@@ -16,6 +16,7 @@ interface DocumentContextData {
   usage_instructions: string
   dialogue_examples: DialogueExample[]
   tags: string[]
+  via_ocr?: boolean
 }
 
 interface DocumentContextModalProps {
@@ -30,6 +31,7 @@ export function DocumentContextModal({ fileName, onSubmit, onCancel }: DocumentC
   const [usageInstructions, setUsageInstructions] = useState('')
   const [dialogueExamples, setDialogueExamples] = useState<DialogueExample[]>([{ user: '', ai: '' }])
   const [tagsInput, setTagsInput] = useState('')
+  const [viaOcr, setViaOcr] = useState(false)
 
   const handleAddExample = () => {
     setDialogueExamples([...dialogueExamples, { user: '', ai: '' }])
@@ -73,6 +75,7 @@ export function DocumentContextModal({ fileName, onSubmit, onCancel }: DocumentC
       usage_instructions: usageInstructions,
       dialogue_examples: validExamples,
       tags,
+      via_ocr: viaOcr,
     })
   }
 
@@ -89,6 +92,24 @@ export function DocumentContextModal({ fileName, onSubmit, onCancel }: DocumentC
               </h2>
               <p className="text-sm text-gray-500 mt-1">{fileName}</p>
             </div>
+
+          {/* OCR Option */}
+          <div className="p-3 border border-amber-200 dark:border-amber-800 rounded-md bg-amber-50 dark:bg-amber-900/20">
+            <label className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-100 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={viaOcr}
+                onChange={(e) => setViaOcr(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Processar via OCR (n8n)
+                <span className="block text-xs text-amber-700 dark:text-amber-200/80">
+                  Envia o PDF ao webhook para OCR (recomendado para PDFs escaneados).
+                </span>
+              </span>
+            </label>
+          </div>
           </div>
           <button
             onClick={onCancel}

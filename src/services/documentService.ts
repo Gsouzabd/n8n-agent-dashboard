@@ -104,7 +104,31 @@ export const documentService = {
 
       if (error) {
         console.error('Processing error:', error)
-        throw new Error('Failed to process document: ' + error.message)
+        // Tenta ler mensagem detalhada do corpo de resposta (JSON ou texto)
+        let detailed = ''
+        try {
+          const anyErr: any = error as any
+          const resp: Response | undefined = anyErr?.context?.response
+          if (resp) {
+            const contentType = resp.headers?.get('content-type') || ''
+            const bodyText = await resp.text()
+            if (contentType.includes('application/json')) {
+              try {
+                const json = JSON.parse(bodyText)
+                detailed = String(json?.error || json?.message || bodyText)
+              } catch {
+                detailed = bodyText
+              }
+            } else {
+              detailed = bodyText
+            }
+            if (!detailed && (resp as any).status) {
+              detailed = `HTTP ${(resp as any).status}`
+            }
+          }
+        } catch {}
+        const msg = detailed || (error as any)?.message || 'Unknown error'
+        throw new Error('Failed to process document: ' + msg)
       }
 
       console.log('Document processed:', data)

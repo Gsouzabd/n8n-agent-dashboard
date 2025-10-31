@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
 import { Upload, File, FileText, Sheet, X, AlertCircle, Check, Loader2 } from 'lucide-react'
 import { Button } from './ui/Button'
 import { DocumentContextModal } from './DocumentContextModal'
@@ -24,6 +25,7 @@ interface DocumentContextData {
   usage_instructions: string
   dialogue_examples: Array<{ user: string; ai: string }>
   tags: string[]
+  via_ocr?: boolean
 }
 
 const getFileIcon = (fileType: string) => {
@@ -124,7 +126,7 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
           return next
         })
 
-        const { documentId } = await documentService.uploadDocument(pendingFile, knowledgeBaseId, context)
+        const { documentId, filePath } = await documentService.uploadDocument(pendingFile, knowledgeBaseId, context)
 
         // Update to processing
         setUploadingFiles(prev => {
@@ -138,8 +140,87 @@ export function FileUpload({ knowledgeBaseId, onUploadComplete }: FileUploadProp
           return next
         })
 
-        // Trigger processing
-        await documentService.processDocument(documentId, knowledgeBaseId)
+        if (context?.via_ocr) {
+          // Gera URL assinada e envia para webhook do n8n
+          setUploadingFiles(prev => {
+            const next = new Map(prev)
+            const item = next.get(key)
+            if (item) {
+              item.progress = 70
+            }
+            return next
+          })
+
+          try {
+            const signedUrl = await documentService.getFileUrl(filePath)
+            const resp = await fetch('https://gsouzabd.app.n8n.cloud/webhook/agent-worskpace-ocrreader', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                document_url: signedUrl,
+                knowledge_base_id: knowledgeBaseId,
+                document_id: documentId,
+                file_name: pendingFile.name,
+              }),
+            })
+
+            if (!resp.ok) {
+              const txt = await resp.text()
+              throw new Error(`Webhook OCR falhou: ${resp.status} ${txt}`)
+            }
+            // Lê retorno do OCR (array de { markdown }) e envia para Edge Function de embedding
+            let ocrPages: Array<{ markdown: string }> = []
+            try {
+              const json = await resp.json()
+              if (Array.isArray(json)) {
+                ocrPages = json as Array<{ markdown: string }>
+              } else if (Array.isArray((json as any)?.data)) {
+                ocrPages = (json as any).data
+              } else {
+                throw new Error('Formato inesperado no retorno do OCR')
+              }
+            } catch (parseErr) {
+              throw new Error('Falha ao interpretar retorno do OCR')
+            }
+
+            setUploadingFiles(prev => {
+              const next = new Map(prev)
+              const item = next.get(key)
+              if (item) {
+                item.status = 'processing'
+                item.progress = 85
+              }
+              return next
+            })
+
+            const { error } = await supabase.functions.invoke('ocr-embed', {
+              body: {
+                documentId,
+                knowledgeBaseId,
+                fileName: pendingFile.name,
+                ocrPages,
+              },
+            })
+
+            if (error) {
+              throw new Error(error.message || 'Falha ao embutir OCR')
+            }
+          } catch (ocrErr) {
+            setUploadingFiles(prev => {
+              const next = new Map(prev)
+              const item = next.get(key)
+              if (item) {
+                item.status = 'failed'
+                item.error = ocrErr instanceof Error ? ocrErr.message : 'Erro ao acionar OCR'
+              }
+              return next
+            })
+            return
+          }
+        } else {
+          // Trigger processamento padrão (Edge Function)
+          await documentService.processDocument(documentId, knowledgeBaseId)
+        }
 
         // Update to completed
         setUploadingFiles(prev => {

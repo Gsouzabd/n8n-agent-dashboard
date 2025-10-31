@@ -17,6 +17,7 @@ serve(async (req) => {
   try {
     const body = await req.json()
     urlId = body.urlId
+    const forcePrerender = !!body.forcePrerender
 
     // Create Supabase client
     const supabaseClient = createClient(
@@ -52,7 +53,8 @@ serve(async (req) => {
       const response = await fetch(urlRecord.url, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; VenturizeBot/1.0)',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         },
       })
       clearTimeout(timeoutId)
@@ -84,11 +86,73 @@ serve(async (req) => {
 
     // Extract title
     const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i)
-    const title = titleMatch ? titleMatch[1].trim() : new URL(urlRecord.url).hostname
+    let title = titleMatch ? titleMatch[1].trim() : new URL(urlRecord.url).hostname
 
-    // Calculate word count
-    const words = text.split(/\s+/)
-    const wordCount = words.length
+    // Initial word count
+    let words = text.split(/\s+/)
+    let wordCount = words.length
+
+    // If content looks too small OR forcePrerender requested, try prerender fallback (handles SPAs and JS-rendered pages)
+    if (forcePrerender || wordCount < 50) {
+      try {
+        console.log('Low word count detected, trying prerender via r.jina.ai')
+        const prerenderResp = await fetch(`https://r.jina.ai/${urlRecord.url}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VenturizeBot/1.0)' },
+        })
+        if (prerenderResp.ok) {
+          const prerenderContent = await prerenderResp.text()
+          // Strip common markdown syntax to plain text
+          const mdText = prerenderContent
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/`[^`]*`/g, ' ')
+            .replace(/!\[[^\]]*\]\([^\)]*\)/g, ' ') // images
+            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // links [text](url) -> text
+            .replace(/^[#>*\-\s]+/gm, ' ') // leading md chars per line
+            .replace(/\s+/g, ' ')
+            .trim()
+
+          const mdWords = mdText.split(/\s+/)
+          const mdCount = mdWords.length
+
+          if (forcePrerender || mdCount > wordCount) {
+            console.log(`Prerender improved word count from ${wordCount} to ${mdCount}`)
+            words = mdWords
+            wordCount = mdCount
+
+            // Try infer title from first level-1 heading
+            const h1Match = prerenderContent.match(/^#\s+(.+)$/m)
+            if (h1Match && h1Match[1]) {
+              title = h1Match[1].trim()
+            }
+
+            // Replace text with mdText for hashing
+            cleanHtml = mdText
+          }
+        } else {
+          console.warn('Prerender fetch failed', prerenderResp.status)
+        }
+      } catch (e) {
+        console.warn('Prerender attempt failed', e)
+      }
+    }
+
+    // If after fallback the content is still too small, mark as failed to avoid misleading "completed"
+    if (wordCount < 50) {
+      console.warn(`Final word count still too low (${wordCount}). Marking as failed.`)
+      await supabaseClient
+        .from('knowledge_urls')
+        .update({
+          status: 'failed',
+          error_message: 'Conteúdo insuficiente extraído (possível página dinâmica com bloqueio a scrapers).',
+          last_crawled_at: new Date().toISOString(),
+        })
+        .eq('id', urlId)
+
+      return new Response(
+        JSON.stringify({ success: false, error: 'Insufficient content extracted', wordCount }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
 
     // Chunk text (500 words per chunk, 50 words overlap)
     const chunkSize = 500
@@ -106,7 +170,7 @@ serve(async (req) => {
 
     // Calculate content hash
     const encoder = new TextEncoder()
-    const data = encoder.encode(text)
+    const data = encoder.encode(words.join(' '))
     const hashBuffer = await crypto.subtle.digest('SHA-256', data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
