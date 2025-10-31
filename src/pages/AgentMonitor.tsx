@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { useOrganization } from '@/contexts/OrganizationContext'
 // Select nativo utilizado no lugar de um componente customizado
 import { Button } from '@/components/ui/Button'
@@ -39,6 +40,7 @@ export function AgentMonitor() {
   const [lastMessageBySession, setLastMessageBySession] = useState<Record<string, { role: MessageRow['role']; content: string; created_at: string }>>({})
   const [channelFilter, setChannelFilter] = useState<'all' | 'iframe' | 'whatsapp' | 'instagram'>('all')
   const [feedbackBySession, setFeedbackBySession] = useState<Record<string, 'positive' | 'negative'>>({})
+  const [assistRequests, setAssistRequests] = useState<any[]>([])
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -173,6 +175,43 @@ export function AgentMonitor() {
     }
   }, [selectedAgentId])
 
+  // Load assist requests (pending) for selected agent + realtime
+  useEffect(() => {
+    const load = async () => {
+      if (!selectedAgentId) return
+      const { data } = await supabase
+        .from('human_assist_requests')
+        .select('*')
+        .eq('agent_id', selectedAgentId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+      setAssistRequests(data || [])
+    }
+    load()
+
+    const ch = selectedAgentId
+      ? supabase.channel(`assist-${selectedAgentId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'human_assist_requests', filter: `agent_id=eq.${selectedAgentId}` }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+              if ((payload.new as any).status === 'pending') setAssistRequests((prev) => [payload.new, ...prev])
+            } else if (payload.eventType === 'UPDATE') {
+              setAssistRequests((prev) => {
+                const next = prev.filter((r) => r.id !== (payload.new as any).id)
+                if ((payload.new as any).status === 'pending') next.unshift(payload.new)
+                return next
+              })
+            } else if (payload.eventType === 'DELETE') {
+              setAssistRequests((prev) => prev.filter((r) => r.id !== (payload.old as any).id))
+            }
+          })
+          .subscribe()
+      : null
+
+    return () => {
+      if (ch) supabase.removeChannel(ch)
+    }
+  }, [selectedAgentId])
+
   useEffect(() => {
     const loadMessages = async () => {
       if (!selectedSessionId) return
@@ -270,6 +309,40 @@ export function AgentMonitor() {
             <Card className="border border-orange-500/20 shadow-2xl shadow-orange-500/10">
               <CardHeader className="py-3 space-y-3 border-b border-orange-500/20 bg-gradient-to-r from-orange-500/5 to-transparent">
                 <CardTitle className="text-base">Conversas</CardTitle>
+                {assistRequests.length > 0 && (
+                  <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800 rounded">
+                    <div className="text-xs font-medium text-amber-800 dark:text-amber-200">Intervenções pendentes: {assistRequests.length}</div>
+                    <div className="mt-2 flex flex-col gap-2 max-h-40 overflow-y-auto">
+                      {assistRequests.map((r) => (
+                        <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                          <div className="truncate">
+                            Sessão {String(r.session_id).slice(0, 8)}… — {r.user_message?.slice(0, 60)}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="px-2 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-500"
+                              onClick={async () => {
+                                const { data: { user } } = await supabase.auth.getUser()
+                                await supabase
+                                  .from('human_assist_requests')
+                                  .update({ status: 'claimed', claimed_by: user?.id || null })
+                                  .eq('id', r.id)
+                              }}
+                            >
+                              Atender
+                            </button>
+                            <button
+                              className="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700"
+                              onClick={() => setSelectedSessionId(r.session_id)}
+                            >
+                              Abrir
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-xs">
                   {/* Todos */}
                   <button
