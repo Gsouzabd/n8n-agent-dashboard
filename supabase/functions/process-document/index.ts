@@ -1,11 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// @deno-types="npm:@types/pdf-parse"
-import pdfParse from 'npm:pdf-parse@1.1.1'
-// Fallback extractor using pdfjs-dist when pdf-parse returns empty
-import * as pdfjsLib from 'npm:pdfjs-dist@3.11.174/build/pdf.mjs'
-import mammoth from 'npm:mammoth@1.6.0'
-import * as XLSX from 'npm:xlsx@0.18.5'
+// Nota: imports npm pesados foram movidos para dentro das funções (imports dinâmicos)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -145,6 +140,7 @@ function intelligentChunk(text: string, fileName: string): ChunkResult[] {
 // Extrai texto de PDF
 async function extractTextFromPDF(buffer: ArrayBuffer, ctx?: { supabase?: any, filePath?: string }): Promise<string> {
   try {
+    const { default: pdfParse } = await import('npm:pdf-parse@1.1.1')
     // Deno não tem Buffer global - converte ArrayBuffer para Uint8Array
     const uint8Array = new Uint8Array(buffer)
     const data = await pdfParse(uint8Array)
@@ -152,7 +148,8 @@ async function extractTextFromPDF(buffer: ArrayBuffer, ctx?: { supabase?: any, f
     if (text.trim().length === 0) {
       // Fallback: tenta extrair via pdfjs-dist
       try {
-        const doc = await pdfjsLib.getDocument({ data: buffer }).promise
+        const pdfjsLib = await import('npm:pdfjs-dist@3.11.174/build/pdf.mjs')
+        const doc = await (pdfjsLib as any).getDocument({ data: buffer }).promise
         const numPages = doc.numPages
         let out = ''
         for (let i = 1; i <= numPages; i++) {
@@ -308,32 +305,34 @@ async function extractTextFromPDF(buffer: ArrayBuffer, ctx?: { supabase?: any, f
     return text
   } catch (error) {
     console.error('PDF parse error:', error)
-    throw new Error('Failed to parse PDF: ' + error.message)
+    throw new Error('Failed to parse PDF: ' + ((error as Error).message || 'Unknown error'))
   }
 }
 
 // Extrai texto de DOCX
 async function extractTextFromDOCX(buffer: ArrayBuffer): Promise<string> {
   try {
+    const mammoth = await import('npm:mammoth@1.6.0')
     // Deno não tem Buffer global - converte ArrayBuffer para Uint8Array
     const uint8Array = new Uint8Array(buffer)
-    const result = await mammoth.extractRawText({ buffer: uint8Array })
+    const result = await (mammoth as any).extractRawText({ buffer: uint8Array })
     return result.value
   } catch (error) {
     console.error('DOCX parse error:', error)
-    throw new Error('Failed to parse DOCX: ' + error.message)
+    throw new Error('Failed to parse DOCX: ' + ((error as Error).message || 'Unknown error'))
   }
 }
 
 // Extrai texto de XLSX
-function extractTextFromXLSX(buffer: ArrayBuffer): string {
+async function extractTextFromXLSX(buffer: ArrayBuffer): Promise<string> {
   try {
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    const XLSX = await import('npm:xlsx@0.18.5')
+    const workbook = (XLSX as any).read(buffer, { type: 'array' })
     let text = ''
     
-    workbook.SheetNames.forEach(sheetName => {
+    workbook.SheetNames.forEach((sheetName: string) => {
       const sheet = workbook.Sheets[sheetName]
-      const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+      const sheetData = (XLSX as any).utils.sheet_to_json(sheet, { header: 1 })
       
       text += `\n\n--- ${sheetName} ---\n\n`
       
@@ -347,7 +346,7 @@ function extractTextFromXLSX(buffer: ArrayBuffer): string {
     return text
   } catch (error) {
     console.error('XLSX parse error:', error)
-    throw new Error('Failed to parse XLSX: ' + error.message)
+    throw new Error('Failed to parse XLSX: ' + ((error as Error).message || 'Unknown error'))
   }
 }
 
@@ -383,8 +382,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let documentId: string | undefined
   try {
-    const { documentId, knowledgeBaseId } = await req.json()
+    const body = await req.json()
+    documentId = body.documentId
+    const knowledgeBaseId = body.knowledgeBaseId
 
     if (!documentId || !knowledgeBaseId) {
       return new Response(
@@ -467,7 +469,7 @@ serve(async (req) => {
     } else if (fileType.includes('wordprocessingml')) {
       extractedText = await extractTextFromDOCX(arrayBuffer)
     } else if (fileType.includes('spreadsheetml')) {
-      extractedText = extractTextFromXLSX(arrayBuffer)
+      extractedText = await extractTextFromXLSX(arrayBuffer)
     } else if (fileType.includes('text/plain')) {
       const decoder = new TextDecoder()
       extractedText = decoder.decode(arrayBuffer)
@@ -561,7 +563,7 @@ serve(async (req) => {
         }
       } catch (chunkError) {
         console.error(`Error processing chunk ${i}:`, chunkError)
-        processedChunks.push({ index: i, status: 'failed', error: chunkError.message })
+        processedChunks.push({ index: i, status: 'failed', error: (chunkError as Error).message || 'Unknown error' })
       }
     }
 
@@ -617,9 +619,8 @@ serve(async (req) => {
     console.error('Processing error:', error)
 
     // Try to update document status to failed
-    try {
-      const { documentId } = await req.json()
-      if (documentId) {
+    if (documentId) {
+      try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
         const supabase = createClient(supabaseUrl, supabaseKey)
@@ -628,16 +629,16 @@ serve(async (req) => {
           .from('knowledge_documents')
           .update({
             processing_status: 'failed',
-            error_message: error.message,
+            error_message: (error as Error).message || 'Unknown error',
           })
           .eq('id', documentId)
+      } catch (updateError) {
+        console.error('Failed to update error status:', updateError)
       }
-    } catch (updateError) {
-      console.error('Failed to update error status:', updateError)
     }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message || 'Unknown error' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
