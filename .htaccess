@@ -1,0 +1,155 @@
+# ============================================
+# .htaccess para Hostinger - React SPA
+# ============================================
+
+# Habilitar RewriteEngine
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Forçar HTTPS (descomente se tiver SSL)
+  # RewriteCond %{HTTPS} off
+  # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Redirecionar www para não-www (ou vice-versa)
+  # RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+  # RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+  # Redirecionar todas as rotas para index.html (SPA)
+  # Se o arquivo não existe, redireciona para index.html
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/assets/
+  RewriteRule ^(.*)$ /index.html [L]
+</IfModule>
+
+# ============================================
+# Compressão GZIP
+# ============================================
+<IfModule mod_deflate.c>
+  # Comprimir HTML, CSS, JavaScript, Text, XML e fonts
+  AddOutputFilterByType DEFLATE text/plain
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/xml
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE application/xml
+  AddOutputFilterByType DEFLATE application/xhtml+xml
+  AddOutputFilterByType DEFLATE application/rss+xml
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/x-javascript
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+  AddOutputFilterByType DEFLATE font/ttf
+  AddOutputFilterByType DEFLATE font/otf
+  AddOutputFilterByType DEFLATE font/woff
+  AddOutputFilterByType DEFLATE font/woff2
+</IfModule>
+
+# ============================================
+# Cache de Arquivos Estáticos
+# ============================================
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Imagens
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+  
+  # CSS e JavaScript
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresByType application/x-javascript "access plus 1 month"
+  ExpiresByType text/javascript "access plus 1 month"
+  
+  # Fontes
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/otf "access plus 1 year"
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType application/font-woff "access plus 1 year"
+  
+  # HTML
+  ExpiresByType text/html "access plus 0 seconds"
+  
+  # JSON
+  ExpiresByType application/json "access plus 0 seconds"
+  
+  # Default
+  ExpiresDefault "access plus 1 month"
+</IfModule>
+
+# ============================================
+# Headers de Segurança
+# ============================================
+<IfModule mod_headers.c>
+  # Prevenir clickjacking (exceto para rotas de widget)
+  # Remove X-Frame-Options para rotas de widget (/w/*) para permitir embed em outros domínios
+  <LocationMatch "^/w/">
+    Header unset X-Frame-Options
+  </LocationMatch>
+  
+  # Para todas as outras rotas, manter SAMEORIGIN
+  Header always set X-Frame-Options "SAMEORIGIN" "expr=%{REQUEST_URI} !~ m#^/w/#"
+  
+  # Prevenir MIME type sniffing
+  Header always set X-Content-Type-Options "nosniff"
+  
+  # XSS Protection
+  Header always set X-XSS-Protection "1; mode=block"
+  
+  # Referrer Policy
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  
+  # Content Security Policy (ajuste conforme necessário)
+  # Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+  
+  # Permissões de API (para CORS se necessário)
+  # Header always set Access-Control-Allow-Origin "*"
+  # Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+  # Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# ============================================
+# Prevenir Listagem de Diretórios
+# ============================================
+Options -Indexes
+
+# ============================================
+# Proteger Arquivos Sensíveis
+# ============================================
+<FilesMatch "\.(env|log|ini|conf|sql|md|git|htaccess)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+# Bloquear acesso a arquivos de configuração
+<FilesMatch "^(package\.json|package-lock\.json|tsconfig\.json|vite\.config\.ts)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+# ============================================
+# Melhorar Performance
+# ============================================
+# Habilitar Keep-Alive
+<IfModule mod_headers.c>
+  Header set Connection keep-alive
+</IfModule>
+
+# ============================================
+# Configurações de Encoding
+# ============================================
+AddDefaultCharset UTF-8
+AddCharset UTF-8 .html .css .js .json .xml .txt
+
+# ============================================
+# Páginas de Erro Personalizadas (opcional)
+# ============================================
+# ErrorDocument 404 /index.html
+# ErrorDocument 500 /index.html
+

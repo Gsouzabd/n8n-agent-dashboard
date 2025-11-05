@@ -1,0 +1,1033 @@
+{
+  "name": "[AgentWorkspace] Backend - IA",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Code node\nreturn $json.pages.map(page => ({\n  markdown: page.markdown\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        3328
+      ],
+      "id": "7adf1288-ce13-48dd-b5bb-e68501632da2",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -96,
+        3328
+      ],
+      "id": "85fc719f-cbe1-4c26-8a0f-528edb29b856",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ijbxQ3MEhtE9Pv8213fdG8p9VErdqPCq"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"document_url\",\n    \"document_url\": \"{{ $json.body.document_url }}\"\n  },\n  \"include_image_base64\": true\n} ",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -560,
+        3328
+      ],
+      "id": "63bf7d6b-cfc3-44a8-885f-ff917aadc3e3",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-worskpace-ocrreader",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        3328
+      ],
+      "id": "7c2412f0-fc58-4edf-9b3e-e4af96546353",
+      "name": "OcrReader",
+      "webhookId": "5755a173-2207-475a-bc2e-e2e0119ca4fc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionId = $('Extract Data1').first().json.body.session_id;\n\nlet response = $input.first().json.output;\n\n\nreturn [{ response, session_id: sessionId }];"
+      },
+      "id": "a75c3199-3e6a-49e0-aa73-080b838e8fbd",
+      "name": "Format Response3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## [AgentWorkspace] Backend - IA [MAG]\n",
+        "height": 1056,
+        "width": 2304
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        448
+      ],
+      "typeVersion": 1,
+      "id": "b3f44295-1a30-48f2-81e9-fcb5eef80a12",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('getAgentConfigs1').item.json.template_type }}",
+              "value2": "table_booking"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "aa1f80e3-e987-4897-80a4-4cd23edc4daa",
+      "name": "If Template TableBooking1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        736
+      ],
+      "id": "8d6352fb-7493-40d0-b58d-1337178d022d",
+      "name": "No Operation, do nothing1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7bf74cd8-8ec4-4dae-bf9a-7b1e5c99f169",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "1f45332f-cd18-4e45-988e-94fa3a8ec934",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "=in_progress",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        704,
+        752
+      ],
+      "id": "ec8ec5c9-13db-492d-9763-d8151beae9d3",
+      "name": "HumanPending?2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7bf74cd8-8ec4-4dae-bf9a-7b1e5c99f169",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "1f45332f-cd18-4e45-988e-94fa3a8ec934",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "=pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1264,
+        528
+      ],
+      "id": "9fd6d866-3d70-494f-b71f-db596b492c7b",
+      "name": "HumanPending?3"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "human_assist_requests",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "agent_id",
+              "keyValue": "={{ $('Extract Data1').item.json.body.agent_id }}"
+            },
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $('Extract Data1').item.json.body.session_id }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "in_progress"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        544
+      ],
+      "id": "50778621-4859-4243-a1fc-7836cd011469",
+      "name": "Check Open Assists InProgress1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "human_assist_requests",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "agent_id",
+              "keyValue": "={{ $('Extract Data1').item.json.body.agent_id }}"
+            },
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $('Extract Data1').item.json.body.session_id }}"
+            },
+            {
+              "keyName": "status",
+              "keyValue": "pending"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        704,
+        512
+      ],
+      "id": "41c8cd9f-5374-441e-890c-48fcf321e0b3",
+      "name": "Check Open Assists Pending1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BvddCSLvY0QFxU46",
+          "name": "[Gabriel[ Supa"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{  ($('Extract Data1').item.json.SUPABASE_FUNCTIONS_URL + '/functions/v1') + '/human-assist' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Extract Data1').item.json[\"SUPABASE_SERVICE_ROLE_KEY\"] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "agent_id",
+              "value": "={{ $('Extract Data1').item.json.body.agent_id }}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $('Extract Data1').item.json.body.session_id }}"
+            },
+            {
+              "name": "user_message",
+              "value": "={{ $('Extract Data1').item.json.body.message }}"
+            },
+            {
+              "name": " ai_message",
+              "value": "Só um momento enquanto verifico essa informação."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1152,
+        960
+      ],
+      "id": "9748bec6-7499-47ac-89a9-ecbb69c9a6bc",
+      "name": "aiNeedsHelp"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "response",
+              "value": "Aguarda só um momento enquanto verifico essa Informação para você."
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $('Extract Data1').item.json.body.session_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "79c50dd2-bf00-4c39-be0a-bee2bdb30e28",
+      "name": "Format Response Handoff1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.output }}",
+              "value2": "PROCEED"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        896,
+        880
+      ],
+      "id": "04a80b8e-ec4e-410a-af39-8b69d0ed535f",
+      "name": "If Supervisor Decision1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract Data1').item.json.body.message }}",
+        "options": {
+          "systemMessage": "Você é um agente especializado em busca e recuperação de informações (RAG). Sua única função é:\n\n1) Receber a query do usuário\n2) Usar a tool \"SupabaseVectorStore\" para buscar informações relevantes na base de conhecimento vetorizada\n3) Analisar a relevância dos resultados usando metadatas (tags, document_description, usage_context)\n4) Retornar APENAS um contexto formatado e estruturado para o agente comunicador\n\nIMPORTANTE:\n- Você NÃO responde ao usuário final\n- Você NÃO explica seus passos\n- Você retorna SOMENTE o contexto enriquecido no formato: \"CONTEXT: [contexto consolidado dos documentos relevantes]\"\n- Se não encontrar informações relevantes, retorne: \"CONTEXT: [nenhum documento relevante encontrado]\"\n- Use as metadatas (tags, descriptions) para melhorar a relevância da busca"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        912
+      ],
+      "id": "938eb345-75e1-4a59-b6c9-0b3de5c0737c",
+      "name": "RAG Search Agent1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatar resposta do RAG Search Agent para passar ao AI Agent\nconst agentOutput = $input.first().json.output || $input.first().json.text || '';\nconst originalMessage = $('Extract Data1').first().json.body.message;\n\n// Extrair contexto do output do agente (formato: \"CONTEXT: [contexto]\")\nlet context = '';\nif (agentOutput.includes('CONTEXT:')) {\n  const contextMatch = agentOutput.match(/CONTEXT:\\s*(.+)/s);\n  if (contextMatch) {\n    context = contextMatch[1].trim();\n  }\n} else if (agentOutput.includes('nenhum documento relevante')) {\n  context = 'Nenhum documento relevante encontrado na base de conhecimento.';\n}\n\n// Se não encontrou contexto no output, tentar buscar de tool calls anteriores\nif (!context || context.includes('nenhum')) {\n  // Tentar buscar do tool result se disponível\n  const toolResult = $input.first().json.toolResult || $input.first().json;\n  if (toolResult.context) {\n    context = toolResult.context;\n  } else if (toolResult.documents && toolResult.documents.length > 0) {\n    context = toolResult.documents\n      .map(doc => {\n        let docText = doc.content || '';\n        if (doc.document_description) {\n          docText = `[${doc.document_description}]\\n${docText}`;\n        }\n        return docText;\n      })\n      .join('\\n\\n---\\n\\n');\n  }\n}\n\n// Truncamento de segurança para evitar \"Request too large\"\n// Limite: 12000 caracteres (~3000 tokens)\nconst MAX_CONTEXT_CHARS = 12000;\nlet wasTruncated = false;\nif (context && context.length > MAX_CONTEXT_CHARS) {\n  context = context.substring(0, MAX_CONTEXT_CHARS) + '... [contexto truncado para evitar exceder limite de tokens]';\n  wasTruncated = true;\n  console.log(`⚠️ Contexto RAG truncado de ${context.length} para ${MAX_CONTEXT_CHARS} caracteres`);\n}\n\n// Preparar dados para o AI Agent\nreturn [{\n  message: originalMessage,\n  rag_context: context || 'Nenhum documento relevante encontrado na base de conhecimento.',\n  session_id: $('Extract Data1').first().json.body.session_id,\n  agent_id: $('Extract Data1').first().json.body.agent_id,\n  response_format: $('Extract Data1').first().json.body.response_format || 'text',\n  context_truncated: wasTruncated\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        944
+      ],
+      "id": "c76d7118-3570-4ef6-87ba-5275bd85654e",
+      "name": "Format RAG Context1"
+    },
+    {
+      "parameters": {
+        "tableName": {
+          "__rl": true,
+          "value": "knowledge_documents",
+          "mode": "list",
+          "cachedResultName": "knowledge_documents"
+        },
+        "options": {
+          "queryName": "match_documents",
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "agent_id",
+                "value": "={{ $('Extract Data1').first().json.agent_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        1280
+      ],
+      "id": "7f68859b-c7db-4939-a085-ce18e8cff4fc",
+      "name": "Supabase Vector Store1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-large",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        1392
+      ],
+      "id": "19944c2e-be7d-482e-ba2e-764a8dc6a9a6",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQgXKraRyRXnurrA",
+          "name": "OpenAi account - pap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "agents",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.body.agent_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        848,
+        528
+      ],
+      "id": "35c9a88c-d6e8-4279-85da-a646fec30fed",
+      "name": "getAgentConfigs1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        1264
+      ],
+      "id": "40e28540-0654-4bcf-8372-2b5f74041ad0",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQgXKraRyRXnurrA",
+          "name": "OpenAi account - pap"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Data1').item.json.body.session_id }}",
+        "contextWindowLength": -1
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        1392
+      ],
+      "id": "e882c5b1-844f-40c3-8dc8-bb1b2ea97c79",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "={{ $('getAgentConfigs1').item.json.system_prompt }}\n\n## REGRAS PRIMORDIAIS\n— Use o contexto RAG fornecido para responder. O contexto já foi preparado por um agente especializado em busca:\n\n**CONTEXTO DA BASE DE CONHECIMENTO:**\n{{ $json.rag_context }}\n\n— Base sua resposta APENAS no contexto fornecido acima. Se o contexto não contiver informações suficientes, informe isso ao usuário.\n\n## FORMATO DE RESPOSTA\nFormato selecionado: {{ $json.response_format }}\n- Se for 'table': responda SOMENTE com uma tabela em Markdown (GFM) bem formatada, com cabeçalho e linhas. Não inclua texto fora da tabela.\n- Se for 'json': responda SOMENTE com JSON válido (sem cercas markdown), estruturado como uma lista de objetos com campos relevantes (ex.: nome, descricao, preco?, url?). Não inclua texto extra.\n- Se for 'text': responda normalmente em texto."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        864,
+        1248
+      ],
+      "id": "88c5ae8d-b88a-4dc6-ac8d-84e0573b2e29",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"response\": $json.response, \"session_id\": $json.session_id } }}",
+        "options": {}
+      },
+      "id": "c63637e1-4c35-4bad-a1ce-6670127aaf2e",
+      "name": "Respond to Webhook2",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "agent_id",
+              "value": "={{ $json.body.agent_id ?? 'e5a4ea22-d5c2-4ef7-9ad0-312eeb6bba95'\n}}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $json.body.session_id ?? 'teste 123'}}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "history",
+              "value": "={{ JSON.stringify($json.body.history || []) }}"
+            },
+            {
+              "name": "response_format",
+              "value": "={{ $json.body.response_format ?? 'text' }}"
+            },
+            {
+              "name": "SUPABASE_FUNCTIONS_URL",
+              "value": "https://bdhhqafyqyamcejkufxf.supabase.co"
+            },
+            {
+              "name": "SUPABASE_SERVICE_ROLE_KEY",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkaGhxYWZ5cXlhbWNlamt1ZnhmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTMxOTMzNSwiZXhwIjoyMDc2ODk1MzM1fQ.IpnH7ZfuL3bQSR4LgE3pRyJV_XR-zdRqiyiXMOdCNKA"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d0cf1d5-e8df-475e-80bd-060447849fb8",
+      "name": "Extract Data1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        544,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workspace-agent-pap",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        160,
+        544
+      ],
+      "id": "fb4ac41c-8150-41e1-b122-8c75ba6107ef",
+      "name": "Webhook1",
+      "webhookId": "aad39c34-9ea0-427a-99ae-8a363ada5c9d",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "fiLiIWKGnVoMgpMd",
+          "name": "Worskpace-Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Informações gerais para perguntas e respostas",
+        "topK": "=10"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        96,
+        1216
+      ],
+      "id": "bbd38e66-b49a-433f-a162-bead0026347a",
+      "name": "SupabaseVectorStore"
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "gsouzabd.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            "content-length": "453",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "en-US,en;q=0.9,pt;q=0.8",
+            "authorization": "Basic d29ya3NwYWNlLWFnZW50OmJkaGhxYWZ5cXlhbWNlamt1Znhm",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "187.19.243.43",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "BR",
+            "cf-ray": "9994ccd06689ce97-JDO",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "origin": "https://agentsworkspace.papricadevs.com.br",
+            "priority": "u=1, i",
+            "referer": "https://agentsworkspace.papricadevs.com.br/",
+            "sec-ch-ua": "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not_A Brand\";v=\"99\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "x-forwarded-for": "187.19.243.43, 172.70.193.135",
+            "x-forwarded-host": "gsouzabd.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-87-bcb9f59f7-7xp2f",
+            "x-is-trusted": "yes",
+            "x-real-ip": "187.19.243.43"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "agent_id": "2d58bfaf-d5a3-48ce-9012-4cc1d5eda5d2",
+            "session_id": "d87b2d58-1eea-40e0-a23d-d161a2b97583",
+            "message": "Como adicionar a Stract no Google Sheets?",
+            "history": [
+              {
+                "role": "user",
+                "content": "olá"
+              },
+              {
+                "role": "assistant",
+                "content": "Olá! Como posso ajudar você hoje? Se tiver alguma dúvida ou precisa de informações específicas, é só perguntar."
+              },
+              {
+                "role": "user",
+                "content": "oi"
+              },
+              {
+                "role": "assistant",
+                "content": "Olá! Como posso ajudar você hoje?"
+              }
+            ]
+          },
+          "webhookUrl": "https://gsouzabd.app.n8n.cloud/webhook/workspace-agent-pap",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OcrReader": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Template TableBooking1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Open Assists Pending1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HumanPending?2": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RAG Search Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HumanPending?3": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Open Assists InProgress1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Open Assists InProgress1": {
+      "main": [
+        [
+          {
+            "node": "HumanPending?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Open Assists Pending1": {
+      "main": [
+        [
+          {
+            "node": "HumanPending?3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aiNeedsHelp": {
+      "main": [
+        [
+          {
+            "node": "Format Response Handoff1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Supervisor Decision1": {
+      "main": [
+        [
+          {
+            "node": "RAG Search Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "aiNeedsHelp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Search Agent1": {
+      "main": [
+        [
+          {
+            "node": "Format RAG Context1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format RAG Context1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store1": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "SupabaseVectorStore",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getAgentConfigs1": {
+      "main": [
+        [
+          {
+            "node": "If Template TableBooking1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SupabaseVectorStore",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "RAG Search Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Format Response3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response Handoff1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data1": {
+      "main": [
+        [
+          {
+            "node": "getAgentConfigs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Extract Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SupabaseVectorStore": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG Search Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "18791cdb-8284-4940-b6db-e2a134dbcc6e",
+  "meta": {
+    "instanceId": "07ff2d9cfd91f7cdf9966883f8bc777072e99b72e5d3da8541efdae05b3be261"
+  },
+  "id": "42Hvse8T8cBxNH8q",
+  "tags": []
+}

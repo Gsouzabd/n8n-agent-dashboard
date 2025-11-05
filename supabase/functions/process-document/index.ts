@@ -77,7 +77,7 @@ function chunkProductList(text: string, fileName: string): ChunkResult[] {
   return chunks
 }
 
-// Chunking inteligente - divide texto em pedaços de ~500-1000 tokens
+// Chunking inteligente - divide texto em pedaços de ~500-600 tokens
 function intelligentChunk(text: string, fileName: string): ChunkResult[] {
   // Se for lista de produtos, usa estratégia específica
   if (isProductList(text)) {
@@ -87,54 +87,121 @@ function intelligentChunk(text: string, fileName: string): ChunkResult[] {
   
   const chunks: ChunkResult[] = []
   
-  // Remove múltiplos espaços e quebras de linha
-  const cleanedText = text.replace(/\s+/g, ' ').trim()
-  
-  // Divide por parágrafos (dupla quebra de linha)
-  const paragraphs = cleanedText.split(/\n\n+/)
+  // Preserva quebras de linha para detectar parágrafos
+  const normalized = text.replace(/\r\n|\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  const paragraphs = normalized.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
   
   let currentChunk = ''
   let chunkIndex = 0
   
-  for (const paragraph of paragraphs) {
-    const potentialChunk = currentChunk + '\n\n' + paragraph
-    
-    // ~750 palavras = ~1000 tokens (aproximadamente)
-    const wordCount = potentialChunk.split(/\s+/).length
-    
-    if (wordCount > 750 && currentChunk.length > 0) {
-      // Salva chunk atual
+  const flushCurrent = () => {
+    if (currentChunk.trim().length > 0) {
+      const wordCount = currentChunk.trim().split(/\s+/).length
       chunks.push({
         content: currentChunk.trim(),
         metadata: {
           fileName,
           chunkIndex,
-          wordCount: currentChunk.split(/\s+/).length,
+          wordCount,
           processedAt: new Date().toISOString(),
         }
       })
-      
       chunkIndex++
-      currentChunk = paragraph
+      currentChunk = ''
+    }
+  }
+  
+  // Processa parágrafos - limite de 500 palavras por chunk
+  const MAX_WORDS_PER_CHUNK = 500
+  
+  for (const paragraph of paragraphs) {
+    const paragraphWordCount = paragraph.split(/\s+/).length
+    
+    // Se o parágrafo sozinho for muito grande (>500 palavras), divide por sentenças
+    if (paragraphWordCount > MAX_WORDS_PER_CHUNK) {
+      // Salva chunk atual antes de processar parágrafo grande
+      if (currentChunk.length > 0) {
+        flushCurrent()
+      }
+      
+      // Divide parágrafo grande por sentenças
+      const sentences = paragraph.split(/([.!?]+\s+)/).filter(s => s.trim().length > 0)
+      let sentenceChunk = ''
+      
+      for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i]
+        const candidate = sentenceChunk ? sentenceChunk + ' ' + sentence : sentence
+        const candidateWordCount = candidate.split(/\s+/).length
+        
+        if (candidateWordCount > MAX_WORDS_PER_CHUNK && sentenceChunk.length > 0) {
+          // Se atingiu limite, salva e começa novo chunk
+          chunks.push({
+            content: sentenceChunk.trim(),
+            metadata: {
+              fileName,
+              chunkIndex,
+              wordCount: sentenceChunk.trim().split(/\s+/).length,
+              processedAt: new Date().toISOString(),
+            }
+          })
+          chunkIndex++
+          sentenceChunk = sentence
+        } else {
+          sentenceChunk = candidate
+        }
+      }
+      
+      // Se sobrou conteúdo no sentenceChunk, adiciona ao currentChunk
+      if (sentenceChunk.trim().length > 0) {
+        currentChunk = sentenceChunk
+      }
     } else {
-      currentChunk = potentialChunk
+      // Parágrafo normal - adiciona ao chunk atual
+      const candidate = currentChunk ? currentChunk + '\n\n' + paragraph : paragraph
+      const candidateWordCount = candidate.split(/\s+/).length
+      
+      if (candidateWordCount > MAX_WORDS_PER_CHUNK && currentChunk.length > 0) {
+        // Se excedeu limite, salva chunk atual e começa novo com este parágrafo
+        flushCurrent()
+        currentChunk = paragraph
+      } else {
+        currentChunk = candidate
+      }
     }
   }
   
   // Adiciona último chunk
-  if (currentChunk.trim().length > 0) {
-    chunks.push({
-      content: currentChunk.trim(),
-      metadata: {
-        fileName,
-        chunkIndex,
-        wordCount: currentChunk.split(/\s+/).length,
-        processedAt: new Date().toISOString(),
+  flushCurrent()
+  
+  // Fallback final: se algum chunk ainda for muito grande (>600 palavras), divide por palavras
+  const finalChunks: ChunkResult[] = []
+  for (const chunk of chunks) {
+    if (chunk.metadata.wordCount > 600) {
+      // Divide chunk grande em pedaços de 500 palavras
+      const words = chunk.content.split(/\s+/)
+      const size = 500
+      for (let i = 0; i < words.length; i += size) {
+        const slice = words.slice(i, i + size).join(' ')
+        if (slice.trim()) {
+          finalChunks.push({
+            content: slice.trim(),
+            metadata: {
+              fileName,
+              chunkIndex: finalChunks.length,
+              wordCount: slice.trim().split(/\s+/).length,
+              processedAt: new Date().toISOString(),
+            }
+          })
+        }
       }
-    })
+    } else {
+      // Chunk com tamanho adequado, mantém
+      chunk.metadata.chunkIndex = finalChunks.length
+      finalChunks.push(chunk)
+    }
   }
   
-  return chunks
+  return finalChunks
 }
 
 // Extrai texto de PDF
@@ -359,7 +426,7 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<{ emb
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'text-embedding-3-small', // 10x mais barato que ada-002!
+      model: 'text-embedding-3-large',
       input: text.substring(0, 8000), // Limite de tokens
       encoding_format: 'float',
     }),
@@ -367,13 +434,40 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<{ emb
 
   if (!response.ok) {
     const error = await response.text()
+    console.error('OpenAI API error:', error)
     throw new Error('OpenAI API error: ' + error)
   }
 
   const data = await response.json()
+  
+  if (!data.data || !data.data[0] || !data.data[0].embedding) {
+    console.error('Invalid OpenAI response:', JSON.stringify(data, null, 2))
+    throw new Error('Invalid response from OpenAI API: missing embedding data')
+  }
+
+  const embedding = data.data[0].embedding
+  
+  // Validar que embedding é um array de números com 3072 dimensões
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embedding is not an array')
+  }
+  
+  if (embedding.length !== 3072) {
+    console.error(`Embedding dimension mismatch: expected 3072, got ${embedding.length}`)
+    throw new Error(`Embedding dimension mismatch: expected 3072, got ${embedding.length}`)
+  }
+  
+  // Validar que todos os elementos são números
+  if (!embedding.every((val: any) => typeof val === 'number')) {
+    throw new Error('Embedding contains non-numeric values')
+  }
+
+  const tokens = data.usage?.total_tokens || 0
+  console.log(`Embedding generated: ${embedding.length} dimensions, ${tokens} tokens`)
+  
   return {
-    embedding: data.data[0].embedding,
-    tokens: data.usage?.total_tokens || 0,
+    embedding,
+    tokens,
   }
 }
 
@@ -414,19 +508,34 @@ serve(async (req) => {
       .single()
 
     if (docError || !document) {
-      throw new Error('Document not found')
+      console.error('Error fetching document:', docError)
+      throw new Error('Document not found: ' + (docError?.message || 'Unknown error'))
     }
 
+    console.log('Document fetched:', { id: document.id, file_name: document.file_name })
+    console.log('Knowledge base data:', JSON.stringify(document.knowledge_bases, null, 2))
+
     // Extract agent_id and organization_id from knowledge_base
-    const agentId = document.knowledge_bases?.agent_id
-    const organizationId = document.knowledge_bases?.organization_id
+    // Supabase pode retornar como array ou objeto, tratar ambos os casos
+    const kbData = Array.isArray(document.knowledge_bases) 
+      ? document.knowledge_bases[0] 
+      : document.knowledge_bases
+    
+    const agentId = kbData?.agent_id
+    const organizationId = kbData?.organization_id
+    
+    console.log('Extracted IDs:', { agentId, organizationId })
     
     if (!agentId) {
-      throw new Error('Agent ID not found for this document')
+      const errorMsg = 'Agent ID not found for this document'
+      console.error(errorMsg, { documentId, kbData })
+      throw new Error(errorMsg)
     }
     
     if (!organizationId) {
-      throw new Error('Organization ID not found for this document')
+      const errorMsg = 'Organization ID not found for this document'
+      console.error(errorMsg, { documentId, kbData })
+      throw new Error(errorMsg)
     }
 
     // Get OpenAI API key from organization
@@ -492,78 +601,133 @@ serve(async (req) => {
     console.log(`Processing ${chunks.length} chunks from ${document.file_name}`)
 
     // Process each chunk - generate embedding and save
-    const processedChunks = []
+    const processedChunks: Array<{
+      index: number
+      status: string
+      tokens?: number
+      error?: string
+    }> = []
     let totalTokens = 0
-    const embeddingModel = 'text-embedding-3-small'
+    const embeddingModel = 'text-embedding-3-large'
     
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
       
       try {
-        console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}`)
+        console.log(`Generating embedding for chunk ${i + 1}/${chunks.length} (${chunk.content.length} chars)`)
+        
+        // Validar que o conteúdo do chunk não está vazio
+        if (!chunk.content || chunk.content.trim().length === 0) {
+          console.warn(`Chunk ${i + 1} is empty, skipping`)
+          processedChunks.push({ index: i, status: 'skipped', error: 'Empty chunk content' })
+          continue
+        }
+        
         const { embedding, tokens } = await generateEmbedding(chunk.content, openaiKey)
         totalTokens += tokens
         
-        console.log(`Chunk ${i + 1} embedded successfully (${tokens} tokens)`)
+        // Validar embedding antes de salvar
+        if (!embedding || !Array.isArray(embedding) || embedding.length !== 3072) {
+          const errorMsg = `Invalid embedding for chunk ${i + 1}: expected 3072 dimensions, got ${embedding?.length || 0}`
+          console.error(errorMsg)
+          throw new Error(errorMsg)
+        }
+        
+        console.log(`Chunk ${i + 1} embedded successfully (${tokens} tokens, ${embedding.length} dimensions)`)
+        
+        // Preparar metadata com agent_id e organization_id
+        const chunkMetadata = {
+          ...(typeof document.metadata === 'object' && document.metadata !== null ? document.metadata : {}),
+          ...chunk.metadata,
+          agent_id: agentId,
+          organization_id: organizationId,
+          knowledge_base_id: knowledgeBaseId,
+        }
         
         // Create new document for each chunk (except first - update original)
         if (i === 0) {
           // Update original document with first chunk
-          await supabase
-            .from('knowledge_documents')
-            .update({
-              content: chunk.content,
-              embedding: JSON.stringify(embedding),
-              organization_id: organizationId,
-              agent_id: agentId,
-              metadata: { 
-                ...document.metadata, 
-                ...chunk.metadata, 
-                agent_id: agentId,
-                organization_id: organizationId,
-                knowledge_base_id: knowledgeBaseId,
-                isFirstChunk: true 
-              },
-              processing_status: 'completed',
-              chunks_count: chunks.length,
-            })
-            .eq('id', documentId)
+          const updateData: any = {
+            content: chunk.content,
+            embedding: JSON.stringify(embedding),
+            organization_id: organizationId,
+            agent_id: agentId,
+            metadata: {
+              ...chunkMetadata,
+              isFirstChunk: true,
+            },
+            processing_status: 'completed',
+            chunks_count: chunks.length,
+          }
           
+          console.log(`Updating original document ${documentId} with first chunk`)
+          const { error: updateError } = await supabase
+            .from('knowledge_documents')
+            .update(updateData)
+            .eq('id', documentId)
+
+          if (updateError) {
+            console.error(`Error updating document ${documentId}:`, JSON.stringify(updateError, null, 2))
+            throw new Error(`Failed to update document: ${updateError.message}`)
+          }
+          
+          console.log(`✅ Successfully updated document ${documentId}`)
           processedChunks.push({ index: i, status: 'updated-original', tokens })
         } else {
           // Insert new document for additional chunks
-          const { error: insertError } = await supabase
-            .from('knowledge_documents')
-            .insert({
-              knowledge_base_id: knowledgeBaseId,
-              organization_id: organizationId,
-              agent_id: agentId,
-              content: chunk.content,
-              embedding: JSON.stringify(embedding),
-              file_name: document.file_name,
-              file_type: document.file_type,
-              file_path: document.file_path, // Same file path
-              metadata: { 
-                ...chunk.metadata, 
-                agent_id: agentId,
-                organization_id: organizationId,
-                knowledge_base_id: knowledgeBaseId,
-                parentDocumentId: documentId, 
-                chunkOf: document.file_name 
-              },
-              processing_status: 'completed',
-            })
-
-          if (insertError) {
-            console.error('Error inserting chunk:', insertError)
-            throw insertError
+          const insertData: any = {
+            knowledge_base_id: knowledgeBaseId,
+            organization_id: organizationId,
+            agent_id: agentId,
+            content: chunk.content,
+            embedding: JSON.stringify(embedding),
+            file_name: document.file_name,
+            file_type: document.file_type,
+            file_path: document.file_path,
+            metadata: {
+              ...chunkMetadata,
+              parentDocumentId: documentId,
+              chunkOf: document.file_name,
+              chunkIndex: i,
+            },
+            processing_status: 'completed',
           }
           
+          console.log(`Inserting chunk ${i + 1} as new document`)
+          const { error: insertError, data: insertedData } = await supabase
+            .from('knowledge_documents')
+            .insert(insertData)
+            .select()
+
+          if (insertError) {
+            console.error(`Error inserting chunk ${i + 1}:`, JSON.stringify(insertError, null, 2))
+            throw new Error(`Failed to insert chunk: ${insertError.message}`)
+          }
+          
+          console.log(`✅ Successfully inserted chunk ${i + 1} (document ID: ${insertedData?.[0]?.id || 'unknown'})`)
           processedChunks.push({ index: i, status: 'inserted', tokens })
         }
-      } catch (chunkError) {
-        console.error(`Error processing chunk ${i}:`, chunkError)
-        processedChunks.push({ index: i, status: 'failed', error: (chunkError as Error).message || 'Unknown error' })
+      } catch (chunkError: any) {
+        const errorMsg = chunkError?.message || 'Unknown error'
+        console.error(`❌ Error processing chunk ${i + 1}:`, errorMsg)
+        console.error('Full error:', chunkError)
+        processedChunks.push({ index: i, status: 'failed', error: errorMsg })
+        
+        // Se for o primeiro chunk e falhar, atualizar status do documento original
+        if (i === 0) {
+          try {
+            await supabase
+              .from('knowledge_documents')
+              .update({
+                processing_status: 'failed',
+                error_message: `Failed to process first chunk: ${errorMsg}`,
+              })
+              .eq('id', documentId)
+            console.log(`Updated document ${documentId} status to failed`)
+          } catch (updateStatusError) {
+            console.error('Failed to update document status:', updateStatusError)
+          }
+        }
       }
     }
 
@@ -615,8 +779,11 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
-  } catch (error) {
-    console.error('Processing error:', error)
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Unknown error'
+    console.error('❌ Processing error:', errorMessage)
+    console.error('Full error object:', JSON.stringify(error, null, 2))
+    console.error('Error stack:', error?.stack)
 
     // Try to update document status to failed
     if (documentId) {
@@ -625,20 +792,30 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
         const supabase = createClient(supabaseUrl, supabaseKey)
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('knowledge_documents')
           .update({
             processing_status: 'failed',
-            error_message: (error as Error).message || 'Unknown error',
+            error_message: errorMessage,
           })
           .eq('id', documentId)
-      } catch (updateError) {
-        console.error('Failed to update error status:', updateError)
+        
+        if (updateError) {
+          console.error('Failed to update error status:', JSON.stringify(updateError, null, 2))
+        } else {
+          console.log(`✅ Updated document ${documentId} status to failed`)
+        }
+      } catch (updateError: any) {
+        console.error('Exception while updating error status:', updateError?.message || updateError)
       }
     }
 
     return new Response(
-      JSON.stringify({ error: (error as Error).message || 'Unknown error' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        documentId,
+        details: error?.details || null,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

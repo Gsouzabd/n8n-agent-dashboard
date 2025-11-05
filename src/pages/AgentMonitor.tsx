@@ -99,60 +99,96 @@ export function AgentMonitor() {
   useEffect(() => {
     const loadSessions = async () => {
       if (!selectedAgentId) return
-      const { data, error } = await supabase
+      
+      // Buscar todas as sessões do agente
+      const { data: allSessions, error: sessionsError } = await supabase
         .from('chat_sessions')
         .select('id, agent_id, user_id, updated_at, external_session_id')
         .eq('agent_id', selectedAgentId)
         .order('updated_at', { ascending: false })
         .limit(100)
 
-      if (!error && data) {
-        setSessions(data as SessionRow[])
-        // Buscar última mensagem de cada sessão
-        const sessionIds = (data as SessionRow[]).map(s => s.id)
-        if (sessionIds.length > 0) {
-          const { data: msgs } = await supabase
-            .from('chat_messages')
-            .select('session_id, role, content, created_at')
-            .in('session_id', sessionIds)
-            .order('created_at', { ascending: false })
+      if (sessionsError) {
+        console.error('Error loading sessions:', sessionsError)
+        return
+      }
 
-          const map: Record<string, { role: MessageRow['role']; content: string; created_at: string }> = {}
-          if (msgs) {
-            for (const m of msgs as any[]) {
-              if (!map[m.session_id]) {
-                map[m.session_id] = { role: m.role, content: m.content, created_at: m.created_at }
-              }
+      if (!allSessions || allSessions.length === 0) {
+        setSessions([])
+        setLastMessageBySession({})
+        setFeedbackBySession({})
+        setSelectedSessionId('')
+        setMessages([])
+        return
+      }
+
+      // Buscar IDs de sessões que têm mensagens
+      const { data: messagesWithSessions } = await supabase
+        .from('chat_messages')
+        .select('session_id')
+        .in('session_id', allSessions.map(s => s.id))
+
+      // Extrair IDs únicos de sessões com mensagens
+      const sessionIdsWithMessages = new Set<string>()
+      if (messagesWithSessions && messagesWithSessions.length > 0) {
+        for (const msg of messagesWithSessions) {
+          sessionIdsWithMessages.add(msg.session_id)
+        }
+      }
+
+      // Filtrar apenas sessões que têm mensagens
+      const sessionsArray = allSessions
+        .filter(s => sessionIdsWithMessages.has(s.id))
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+
+      setSessions(sessionsArray as SessionRow[])
+
+      // Buscar última mensagem de cada sessão
+      const sessionIds = sessionsArray.map(s => s.id)
+      if (sessionIds.length > 0) {
+        const { data: msgs } = await supabase
+          .from('chat_messages')
+          .select('session_id, role, content, created_at')
+          .in('session_id', sessionIds)
+          .order('created_at', { ascending: false })
+
+        const map: Record<string, { role: MessageRow['role']; content: string; created_at: string }> = {}
+        if (msgs) {
+          for (const m of msgs as any[]) {
+            if (!map[m.session_id]) {
+              map[m.session_id] = { role: m.role, content: m.content, created_at: m.created_at }
             }
           }
-          setLastMessageBySession(map)
-          // Buscar feedback recente por sessão
-          const { data: fbs } = await supabase
-            .from('message_feedback')
-            .select('conversation_id, feedback_type, created_at')
-            .in('conversation_id', sessionIds)
-            .or('block_index.is.null,block_index.eq.0')
-            .order('created_at', { ascending: false })
-          const fbMap: Record<string, 'positive' | 'negative'> = {}
-          if (fbs) {
-            for (const r of fbs as any[]) {
-              const cid = r.conversation_id
-              if (!(cid in fbMap)) {
-                fbMap[cid] = r.feedback_type
-              }
+        }
+        setLastMessageBySession(map)
+        
+        // Buscar feedback recente por sessão
+        const { data: fbs } = await supabase
+          .from('message_feedback')
+          .select('conversation_id, feedback_type, created_at')
+          .in('conversation_id', sessionIds)
+          .or('block_index.is.null,block_index.eq.0')
+          .order('created_at', { ascending: false })
+        const fbMap: Record<string, 'positive' | 'negative'> = {}
+        if (fbs) {
+          for (const r of fbs as any[]) {
+            const cid = r.conversation_id
+            if (!(cid in fbMap)) {
+              fbMap[cid] = r.feedback_type
             }
           }
-          setFeedbackBySession(fbMap)
-        } else {
-          setLastMessageBySession({})
-          setFeedbackBySession({})
         }
-        if (data.length > 0) {
-          setSelectedSessionId(data[0].id)
-        } else {
-          setSelectedSessionId('')
-          setMessages([])
-        }
+        setFeedbackBySession(fbMap)
+      } else {
+        setLastMessageBySession({})
+        setFeedbackBySession({})
+      }
+      
+      if (sessionsArray.length > 0) {
+        setSelectedSessionId(sessionsArray[0].id)
+      } else {
+        setSelectedSessionId('')
+        setMessages([])
       }
     }
     loadSessions()

@@ -16,6 +16,7 @@
   const urlParams = new URLSearchParams(scriptSrc.split('?')[1]);
   const widgetId = urlParams.get('id');
   const sessionIdParam = urlParams.get('session_id');
+  const supabaseUrlParam = urlParams.get('supabase_url'); // Optional Supabase URL parameter
 
   if (!widgetId) {
     console.error('Venturize Widget: No widget ID provided');
@@ -24,6 +25,54 @@
 
   // Get base URL from script
   const baseUrl = scriptSrc.split('/widget.js')[0];
+  
+  // Determine Supabase URL for Edge Functions
+  // If provided as parameter, use it; otherwise try to infer from baseUrl
+  let supabaseBaseUrl = supabaseUrlParam;
+  if (!supabaseBaseUrl) {
+    // Try to extract Supabase URL from baseUrl if it's a Supabase project
+    // Otherwise, assume Edge Functions are at the same domain
+    if (baseUrl.includes('.supabase.co')) {
+      supabaseBaseUrl = baseUrl;
+    } else {
+      // Default Supabase URL (should be configured per deployment)
+      // This should ideally be set via the script parameter
+      supabaseBaseUrl = 'https://bdhhqafyqyamcejkufxf.supabase.co';
+    }
+  }
+
+  // Generate or retrieve persistent session ID for this visitor
+  // Uses localStorage to persist across page reloads
+  function getOrCreateVisitorSessionId() {
+    const storageKey = 'venturize_widget_session_' + widgetId;
+    let sessionId = sessionIdParam; // Use provided session_id if available
+    
+    if (!sessionId) {
+      // Try to get from localStorage
+      try {
+        sessionId = localStorage.getItem(storageKey);
+      } catch (e) {
+        // localStorage might be blocked (private mode, etc.)
+        console.warn('Venturize Widget: localStorage not available, using session-only ID');
+      }
+      
+      // If still no session ID, generate a new one
+      if (!sessionId) {
+        sessionId = 'widget_' + widgetId + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+        
+        // Try to save to localStorage
+        try {
+          localStorage.setItem(storageKey, sessionId);
+        } catch (e) {
+          // Ignore if localStorage is not available
+        }
+      }
+    }
+    
+    return sessionId;
+  }
+
+  const visitorSessionId = getOrCreateVisitorSessionId();
 
   // Create widget container
   const container = document.createElement('div');
@@ -73,9 +122,8 @@
   const iframe = document.createElement('iframe');
   const iframeUrl = new URL(baseUrl + '/w/' + widgetId);
   iframeUrl.searchParams.set('embedded', 'true');
-  if (sessionIdParam) {
-    iframeUrl.searchParams.set('session_id', sessionIdParam);
-  }
+  // Always use the visitor session ID (either provided or generated)
+  iframeUrl.searchParams.set('session_id', visitorSessionId);
   iframe.src = iframeUrl.toString();
   iframe.style.cssText = `
     width: 400px;
@@ -147,10 +195,18 @@
   // Analytics tracking
   function trackEvent(eventType) {
     try {
-      fetch(baseUrl + '/api/widget-analytics', {
+      // Use Supabase Edge Function URL
+      const analyticsUrl = supabaseBaseUrl.replace(/\/$/, '') + '/functions/v1/widget-analytics';
+      
+      // Supabase anon key for public access (required for Edge Functions with verify_jwt=true)
+      const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkaGhxYWZ5cXlhbWNlamt1ZnhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMTkzMzUsImV4cCI6MjA3Njg5NTMzNX0.FH5j2uCOc2wDIXFu6ByJJBTL9dmiSMbefTtM7va7dfE';
+      
+      fetch(analyticsUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': 'Bearer ' + supabaseAnonKey,
         },
         body: JSON.stringify({
           widgetId: widgetId,
@@ -158,6 +214,7 @@
           referrer: window.location.href,
           referrerDomain: window.location.hostname,
           userAgent: navigator.userAgent,
+          conversationId: visitorSessionId, // Include visitor session ID in analytics
         }),
       }).catch(function(err) {
         console.warn('Venturize Widget: Analytics tracking failed', err);

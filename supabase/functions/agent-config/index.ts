@@ -56,6 +56,20 @@ serve(async (req) => {
       .select('id, name, description')
       .eq('agent_id', agentId)
 
+    // Fetch handoff configuration
+    const { data: handoffConfig } = await supabase
+      .from('agent_handoff_config')
+      .select('enabled')
+      .eq('agent_id', agentId)
+      .maybeSingle()
+
+    // Fetch active handoff triggers
+    const { data: triggers } = await supabase
+      .from('agent_handoff_triggers')
+      .select('trigger_type, value, matching_type')
+      .eq('agent_id', agentId)
+      .eq('is_active', true)
+
     // Build response
     const config = {
       agentId: agent.id,
@@ -75,6 +89,14 @@ serve(async (req) => {
         enabled: knowledgeBases && knowledgeBases.length > 0,
         bases: knowledgeBases || [],
         searchEndpoint: `${supabaseUrl}/functions/v1/agent-query`,
+      },
+      handoff: {
+        enabled: handoffConfig?.enabled || false,
+        triggers: (triggers || []).map(t => ({
+          type: t.trigger_type,
+          value: t.value,
+          matchingType: t.matching_type,
+        })),
       },
       createdAt: agent.created_at,
       updatedAt: agent.updated_at,

@@ -133,9 +133,10 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<{ emb
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'text-embedding-3-small',
+      model: 'text-embedding-3-large',
       input: text.substring(0, 8000),
       encoding_format: 'float',
+      dimensions: 3072, // Explicitly request 3072 dimensions
     }),
   })
   if (!response.ok) {
@@ -143,8 +144,31 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<{ emb
     throw new Error('OpenAI API error: ' + error)
   }
   const data = await response.json()
+  
+  if (!data.data || !data.data[0] || !data.data[0].embedding) {
+    console.error('Invalid OpenAI response:', JSON.stringify(data, null, 2))
+    throw new Error('Invalid response from OpenAI API: missing embedding data')
+  }
+  
+  const embedding = data.data[0].embedding
+  
+  // Validar que embedding é um array de números com 3072 dimensões
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embedding is not an array')
+  }
+  
+  if (embedding.length !== 3072) {
+    console.error(`Embedding dimension mismatch: expected 3072, got ${embedding.length}`)
+    throw new Error(`expected 3072 dimensions, not ${embedding.length}`)
+  }
+  
+  // Validar que todos os elementos são números
+  if (!embedding.every((val: any) => typeof val === 'number')) {
+    throw new Error('Embedding contains non-numeric values')
+  }
+  
   return {
-    embedding: data.data[0].embedding,
+    embedding,
     tokens: data.usage?.total_tokens || 0,
   }
 }
@@ -220,7 +244,7 @@ serve(async (req) => {
     const chunks = intelligentChunk(fullText, fileName || 'document')
     const processedChunks: Array<{ index: number; status: string; tokens: number; error?: string }> = []
     let totalTokens = 0
-    const embeddingModel = 'text-embedding-3-small'
+    const embeddingModel = 'text-embedding-3-large'
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]

@@ -48,11 +48,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       if (!sid) {
         const user = useAuthStore.getState().user
         if (!user) {
-          set({ error: 'User not authenticated', isLoading: false })
-          return
+          // For widget embed without auth, create anonymous session
+          // Generate a unique session ID for this anonymous user
+          const anonymousSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+          sid = await chatService.getOrCreateSessionByExternal(agent.id, anonymousSessionId)
+        } else {
+          // Get or create session for authenticated user
+          sid = await chatService.getOrCreateSession(agent.id, user.id)
         }
-        // Get or create session for authenticated user
-        sid = await chatService.getOrCreateSession(agent.id, user.id)
       }
       
       // Load messages

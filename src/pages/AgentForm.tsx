@@ -12,8 +12,10 @@ import { Label } from '@/components/ui/Label'
 import { Textarea } from '@/components/ui/Textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Layout } from '@/components/Layout'
-import { ArrowLeft, Save, Code } from 'lucide-react'
+import { ArrowLeft, Save, Code, Edit, Trash2, X, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { handoffService } from '@/services/handoffService'
+import { AgentHandoffTrigger } from '@/types'
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -37,6 +39,16 @@ export function AgentForm() {
   const { currentOrganization } = useOrganization()
   const [loading, setLoading] = useState(false)
   const [showJson, setShowJson] = useState(false)
+  const [activeTab, setActiveTab] = useState<'basic' | 'webhook' | 'handoff'>('basic')
+  const [handoffEnabled, setHandoffEnabled] = useState(false)
+  const [triggers, setTriggers] = useState<AgentHandoffTrigger[]>([])
+  const [editingTrigger, setEditingTrigger] = useState<AgentHandoffTrigger | null>(null)
+  const [triggerForm, setTriggerForm] = useState({
+    trigger_type: 'keyword' as 'keyword' | 'attempts' | 'sentiment',
+    value: '',
+    matching_type: 'exact' as 'exact' | 'partial' | 'case_insensitive' | undefined,
+  })
+  const [loadingHandoff, setLoadingHandoff] = useState(false)
 
   const {
     register,
@@ -57,6 +69,7 @@ export function AgentForm() {
   useEffect(() => {
     if (isEditing) {
       loadAgent()
+      loadHandoffConfig()
     }
   }, [id])
 
@@ -75,6 +88,135 @@ export function AgentForm() {
       alert('Erro ao carregar agente')
       navigate('/')
     }
+  }
+
+  const loadHandoffConfig = async () => {
+    if (!id) return
+    
+    try {
+      setLoadingHandoff(true)
+      const config = await handoffService.getHandoffConfig(id)
+      const triggersList = await handoffService.getTriggers(id)
+      
+      setHandoffEnabled(config?.enabled || false)
+      setTriggers(triggersList)
+    } catch (error) {
+      console.error('Erro ao carregar configuração de handoff:', error)
+    } finally {
+      setLoadingHandoff(false)
+    }
+  }
+
+  const handleSaveHandoffEnabled = async (enabled: boolean) => {
+    if (!id) return
+    
+    try {
+      setLoadingHandoff(true)
+      await handoffService.saveHandoffConfig(id, enabled)
+      setHandoffEnabled(enabled)
+    } catch (error: any) {
+      console.error('Erro ao salvar configuração de handoff:', error)
+      alert('Erro ao salvar configuração: ' + error.message)
+    } finally {
+      setLoadingHandoff(false)
+    }
+  }
+
+  const handleSaveTrigger = async () => {
+    if (!id || !triggerForm.value.trim()) {
+      alert('Preencha o valor do gatilho')
+      return
+    }
+
+    // Validação para attempts: deve ser número
+    if (triggerForm.trigger_type === 'attempts') {
+      const numValue = parseInt(triggerForm.value)
+      if (isNaN(numValue) || numValue < 1) {
+        alert('Número de tentativas deve ser um número positivo')
+        return
+      }
+    }
+
+    try {
+      setLoadingHandoff(true)
+      const triggerData: Partial<AgentHandoffTrigger> = {
+        ...(editingTrigger ? { id: editingTrigger.id } : {}),
+        agent_id: id,
+        trigger_type: triggerForm.trigger_type,
+        value: triggerForm.value,
+        matching_type: triggerForm.trigger_type === 'keyword' ? triggerForm.matching_type : undefined,
+      }
+
+      await handoffService.saveTrigger(triggerData)
+      
+      // Recarregar lista de gatilhos
+      const updatedTriggers = await handoffService.getTriggers(id)
+      setTriggers(updatedTriggers)
+      
+      // Limpar formulário
+      setTriggerForm({
+        trigger_type: 'keyword',
+        value: '',
+        matching_type: 'exact',
+      })
+      setEditingTrigger(null)
+    } catch (error: any) {
+      console.error('Erro ao salvar gatilho:', error)
+      alert('Erro ao salvar gatilho: ' + error.message)
+    } finally {
+      setLoadingHandoff(false)
+    }
+  }
+
+  const handleDeleteTrigger = async (triggerId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este gatilho?')) return
+    if (!id) return
+
+    try {
+      setLoadingHandoff(true)
+      await handoffService.deleteTrigger(triggerId)
+      const updatedTriggers = await handoffService.getTriggers(id)
+      setTriggers(updatedTriggers)
+    } catch (error: any) {
+      console.error('Erro ao excluir gatilho:', error)
+      alert('Erro ao excluir gatilho: ' + error.message)
+    } finally {
+      setLoadingHandoff(false)
+    }
+  }
+
+  const handleToggleTriggerStatus = async (triggerId: string, currentStatus: boolean) => {
+    if (!id) return
+
+    try {
+      setLoadingHandoff(true)
+      await handoffService.toggleTriggerStatus(triggerId, !currentStatus)
+      const updatedTriggers = await handoffService.getTriggers(id)
+      setTriggers(updatedTriggers)
+    } catch (error: any) {
+      console.error('Erro ao alterar status do gatilho:', error)
+      alert('Erro ao alterar status: ' + error.message)
+    } finally {
+      setLoadingHandoff(false)
+    }
+  }
+
+  const handleEditTrigger = (trigger: AgentHandoffTrigger) => {
+    setEditingTrigger(trigger)
+    setTriggerForm({
+      trigger_type: trigger.trigger_type,
+      value: trigger.value,
+      matching_type: trigger.matching_type || 'exact',
+    })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTrigger(null)
+    setTriggerForm({
+      trigger_type: 'keyword',
+      value: '',
+      matching_type: 'exact',
+    })
   }
 
   const onSubmit = async (data: AgentFormData) => {
@@ -190,13 +332,54 @@ export function AgentForm() {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações Básicas</CardTitle>
-              <CardDescription>
-                Configure as informações básicas do seu agente
-              </CardDescription>
-            </CardHeader>
+          {/* Tabs */}
+          <div className="border-b">
+            <nav className="flex space-x-8">
+              <button
+                type="button"
+                onClick={() => setActiveTab('basic')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'basic'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                }`}
+              >
+                Informações Básicas
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('webhook')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'webhook'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                }`}
+              >
+                Webhook n8n
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('handoff')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'handoff'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                }`}
+              >
+                Handoff
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab: Informações Básicas */}
+          {activeTab === 'basic' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>
+                  Configure as informações básicas do seu agente
+                </CardDescription>
+              </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome do Agente *</Label>
@@ -234,14 +417,17 @@ export function AgentForm() {
               </div>
             </CardContent>
           </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuração do Webhook n8n</CardTitle>
-              <CardDescription>
-                Configure o webhook para integração com o n8n
-              </CardDescription>
-            </CardHeader>
+          {/* Tab: Webhook */}
+          {activeTab === 'webhook' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuração do Webhook n8n</CardTitle>
+                <CardDescription>
+                  Configure o webhook para integração com o n8n
+                </CardDescription>
+              </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="webhook_url">URL do Webhook</Label>
@@ -316,6 +502,221 @@ export function AgentForm() {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Tab: Handoff */}
+          {activeTab === 'handoff' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuração de Handoff</CardTitle>
+                <CardDescription>
+                  Configure quando o agente deve transferir a conversa para um humano
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Enable/Disable Handoff */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h3 className="font-medium">Ativar Handoff</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Permite que o agente transfira conversas para humanos baseado em gatilhos
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={handoffEnabled}
+                      onChange={(e) => handleSaveHandoffEnabled(e.target.checked)}
+                      disabled={loadingHandoff || !isEditing}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {!isEditing && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      Salve o agente primeiro para configurar os gatilhos de handoff.
+                    </p>
+                  </div>
+                )}
+
+                {isEditing && (
+                  <>
+                    {/* Triggers List */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">Gatilhos de Handoff</h3>
+                      </div>
+
+                      {triggers.length === 0 && !editingTrigger && (
+                        <p className="text-sm text-muted-foreground py-4">
+                          Nenhum gatilho configurado. Adicione um gatilho abaixo.
+                        </p>
+                      )}
+
+                      <div className="space-y-2">
+                        {triggers.map((trigger) => (
+                          <div
+                            key={trigger.id}
+                            className={`flex items-center justify-between p-4 border rounded-lg ${
+                              !trigger.is_active ? 'opacity-50' : ''
+                            }`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {trigger.trigger_type === 'keyword' && 'Palavra-chave'}
+                                  {trigger.trigger_type === 'attempts' && 'Número de tentativas'}
+                                  {trigger.trigger_type === 'sentiment' && 'Sentiment negativo'}
+                                </span>
+                                {!trigger.is_active && (
+                                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                                    Inativo
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                Valor: <span className="font-mono">{trigger.value}</span>
+                                {trigger.matching_type && (
+                                  <> | Tipo: {trigger.matching_type === 'exact' ? 'Exato' : trigger.matching_type === 'partial' ? 'Parcial' : 'Case-insensitive'}</>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditTrigger(trigger)}
+                                disabled={loadingHandoff}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleTriggerStatus(trigger.id, trigger.is_active)}
+                                disabled={loadingHandoff}
+                              >
+                                {trigger.is_active ? (
+                                  <X className="h-4 w-4" />
+                                ) : (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteTrigger(trigger.id)}
+                                disabled={loadingHandoff}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Add/Edit Trigger Form */}
+                    <div className="border-t pt-6">
+                      <h3 className="font-medium mb-4">
+                        {editingTrigger ? 'Editar Gatilho' : 'Adicionar Novo Gatilho'}
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="trigger_type">Tipo de Gatilho</Label>
+                          <select
+                            id="trigger_type"
+                            value={triggerForm.trigger_type}
+                            onChange={(e) => {
+                              setTriggerForm({
+                                ...triggerForm,
+                                trigger_type: e.target.value as 'keyword' | 'attempts' | 'sentiment',
+                                matching_type: e.target.value === 'keyword' ? triggerForm.matching_type : undefined,
+                              })
+                            }}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <option value="keyword">Palavra-chave</option>
+                            <option value="attempts">Número de tentativas</option>
+                            <option value="sentiment">Sentiment negativo</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="trigger_value">
+                            {triggerForm.trigger_type === 'keyword' && 'Palavra-chave'}
+                            {triggerForm.trigger_type === 'attempts' && 'Número de tentativas'}
+                            {triggerForm.trigger_type === 'sentiment' && 'Valor do threshold'}
+                          </Label>
+                          <Input
+                            id="trigger_value"
+                            type={triggerForm.trigger_type === 'attempts' ? 'number' : 'text'}
+                            placeholder={
+                              triggerForm.trigger_type === 'keyword'
+                                ? 'Ex: cancelar, reembolso'
+                                : triggerForm.trigger_type === 'attempts'
+                                ? 'Ex: 3'
+                                : 'Ex: 0.7'
+                            }
+                            value={triggerForm.value}
+                            onChange={(e) => setTriggerForm({ ...triggerForm, value: e.target.value })}
+                          />
+                        </div>
+
+                        {triggerForm.trigger_type === 'keyword' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="matching_type">Tipo de Correspondência</Label>
+                            <select
+                              id="matching_type"
+                              value={triggerForm.matching_type || 'exact'}
+                              onChange={(e) =>
+                                setTriggerForm({
+                                  ...triggerForm,
+                                  matching_type: e.target.value as 'exact' | 'partial' | 'case_insensitive',
+                                })
+                              }
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <option value="exact">Exato</option>
+                              <option value="partial">Parcial</option>
+                              <option value="case_insensitive">Case-insensitive</option>
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleSaveTrigger}
+                            disabled={loadingHandoff || !triggerForm.value.trim()}
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            {editingTrigger ? 'Atualizar' : 'Adicionar'} Gatilho
+                          </Button>
+                          {editingTrigger && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                              disabled={loadingHandoff}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex justify-end gap-4">
             <Button type="button" variant="outline" onClick={() => navigate('/')}>

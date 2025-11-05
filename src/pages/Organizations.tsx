@@ -22,10 +22,12 @@ import {
   Clock,
   Key,
   Save,
+  Edit,
+  Check,
 } from 'lucide-react'
 
 export function Organizations() {
-  const { currentOrganization, currentMember, hasPermission } = useOrganization()
+  const { currentOrganization, currentMember, hasPermission, refreshOrganizations } = useOrganization()
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([])
   const [showInviteForm, setShowInviteForm] = useState(false)
@@ -35,12 +37,16 @@ export function Organizations() {
   const [openaiKey, setOpenaiKey] = useState('')
   const [showOpenaiKey, setShowOpenaiKey] = useState(false)
   const [savingKey, setSavingKey] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [orgName, setOrgName] = useState('')
+  const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
     if (currentOrganization) {
       loadMembers()
       loadInvitations()
       loadOpenAIKey()
+      setOrgName(currentOrganization.name)
     }
   }, [currentOrganization])
 
@@ -187,6 +193,39 @@ export function Organizations() {
     } finally {
       setSavingKey(false)
     }
+  }
+
+  const updateOrganizationName = async () => {
+    if (!currentOrganization || !orgName.trim()) return
+
+    setSavingName(true)
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({ name: orgName.trim() })
+        .eq('id', currentOrganization.id)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Atualizar o contexto
+      await refreshOrganizations()
+      
+      setEditingName(false)
+      alert('Nome da organização atualizado com sucesso!')
+    } catch (error: any) {
+      console.error('Erro ao atualizar nome:', error)
+      alert(`Erro ao atualizar nome: ${error.message || 'Erro desconhecido'}`)
+      setOrgName(currentOrganization.name) // Reverter para o nome original
+    } finally {
+      setSavingName(false)
+    }
+  }
+
+  const cancelEditName = () => {
+    setOrgName(currentOrganization?.name || '')
+    setEditingName(false)
   }
 
   const handleInvite = async () => {
@@ -345,6 +384,48 @@ export function Organizations() {
             <CardTitle>Informações</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500">Nome:</span>
+              {editingName && (currentMember?.role === 'owner' || currentMember?.role === 'admin') ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    className="h-8 text-sm"
+                    disabled={savingName}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={updateOrganizationName}
+                    disabled={savingName || !orgName.trim()}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cancelEditName}
+                    disabled={savingName}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{currentOrganization.name}</span>
+                  {(currentMember?.role === 'owner' || currentMember?.role === 'admin') && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingName(true)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Plano:</span>
               <span className="text-sm font-medium capitalize">{currentOrganization.plan_type}</span>

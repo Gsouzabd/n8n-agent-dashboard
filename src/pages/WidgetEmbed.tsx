@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useChatStore } from '@/stores/chatStore'
 import { Agent, ChatMessage } from '@/types'
-import { Bot, User, Send, Loader2 } from 'lucide-react'
+import { Bot, User, Send, Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { chatService } from '@/services/chatService'
 import { MessageFeedback } from '@/components/MessageFeedback'
@@ -32,7 +32,18 @@ export default function WidgetEmbed() {
         if (!widgetId) return
         const search = new URLSearchParams(window.location.search)
         const externalSessionId = search.get('session_id')
-        if (externalSessionId) setExternalSessionId(externalSessionId)
+        const newSession = search.get('new_session')
+        
+        // Se new_session está presente, gerar novo session_id único
+        let finalSessionId = externalSessionId
+        if (newSession) {
+          // Gera um novo session_id único baseado em timestamp e random
+          finalSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+          setExternalSessionId(finalSessionId)
+        } else if (externalSessionId) {
+          setExternalSessionId(externalSessionId)
+        }
+        
         // Resolve widget -> agent
         const { data: widget, error: wErr } = await supabase
           .from('agent_widgets')
@@ -53,11 +64,11 @@ export default function WidgetEmbed() {
         setAgent(agentData as Agent)
 
         // Open by external session if provided
-        if (externalSessionId) {
+        if (finalSessionId) {
           // Resolve/create external session and open
           // Import inline to avoid circulars
           const { chatService } = await import('@/services/chatService')
-          const sid = await chatService.getOrCreateSessionByExternal(agentData.id, externalSessionId)
+          const sid = await chatService.getOrCreateSessionByExternal(agentData.id, finalSessionId)
           await openChat(agentData as Agent, sid)
         } else {
           await openChat(agentData as Agent)
@@ -69,7 +80,7 @@ export default function WidgetEmbed() {
       }
     }
     init()
-  }, [widgetId, openChat])
+  }, [widgetId, openChat, setExternalSessionId])
 
   // Load feedback badge
   useEffect(() => {
@@ -130,6 +141,15 @@ export default function WidgetEmbed() {
     await sendMessage(text)
   }
 
+  const handleNewSession = () => {
+    // Gera um novo session_id único e recarrega a página
+    const newSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+    const url = new URL(window.location.href)
+    url.searchParams.set('new_session', Date.now().toString())
+    url.searchParams.set('session_id', newSessionId)
+    window.location.href = url.toString()
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
@@ -147,25 +167,35 @@ export default function WidgetEmbed() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex flex-col">
+    <div className="h-screen bg-white dark:bg-black flex flex-col overflow-hidden">
       {/* Header compacto */}
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500/15 to-orange-600/15 flex items-center justify-center border border-orange-500/30">
-          <Bot className="w-4 h-4 text-orange-600" />
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500/15 to-orange-600/15 flex items-center justify-center border border-orange-500/30">
+            <Bot className="w-4 h-4 text-orange-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.name}</p>
+            <p className="text-xs text-gray-500">Chat do agente</p>
+          </div>
+          {feedbackStatus && (
+            <Badge variant="outline" className={`${feedbackStatus === 'positive' ? 'border-green-400 text-green-600 dark:text-green-300' : 'border-red-400 text-red-600 dark:text-red-300'}`}>
+              {feedbackStatus === 'positive' ? '👍' : '👎'}
+            </Badge>
+          )}
         </div>
-        <div>
-          <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.name}</p>
-          <p className="text-xs text-gray-500">Chat do agente</p>
-        </div>
-        {feedbackStatus && (
-          <Badge variant="outline" className={`${feedbackStatus === 'positive' ? 'border-green-400 text-green-600 dark:text-green-300' : 'border-red-400 text-red-600 dark:text-red-300'}`}>
-            {feedbackStatus === 'positive' ? '👍' : '👎'}
-          </Badge>
-        )}
+        <button
+          onClick={handleNewSession}
+          className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
+          title="Iniciar nova conversa"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Nova Sessão
+        </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {error && (
           <div className="p-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded">{error}</div>
         )}
@@ -186,7 +216,7 @@ export default function WidgetEmbed() {
                 </div>
               )}
               <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${bubbleClass}`}>
-                {m.content}
+                <p className="whitespace-pre-wrap break-words">{m.content}</p>
                 {isAssistant && agent && currentSessionId && (
                   <div className="mt-2">
                     <MessageFeedback
@@ -221,7 +251,7 @@ export default function WidgetEmbed() {
       </div>
 
       {/* Input */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-800">
+      <div className="p-3 border-t border-gray-200 dark:border-gray-800 flex-shrink-0">
         <form onSubmit={handleSend} className="flex gap-2">
           <input
             type="text"
