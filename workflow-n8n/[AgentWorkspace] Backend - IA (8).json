@@ -402,6 +402,97 @@
     },
     {
       "parameters": {
+        "description": "Melhorias instruídas específicas do agente",
+        "topK": "=3"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        3984
+      ],
+      "id": "d2a3b0b8-4c6d-4a6a-bf21-9c4f1f2a1c9a",
+      "name": "ImprovementsVectorStoreTool"
+    },
+    {
+      "parameters": {
+        "tableName": {
+          "__rl": true,
+          "value": "agent_improvements",
+          "mode": "list",
+          "cachedResultName": "agent_improvements"
+        },
+        "options": {
+          "queryName": "match_agent_improvements",
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "=agent_id",
+                "value": "={{ $('Extract Data1').first().json.body.agent_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        512,
+        4080
+      ],
+      "id": "c6f5b2ef-1ea1-45c5-83d5-3a0f9c2b6d55",
+      "name": "Improvements Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "EOGJkdSrjuR27Pf6",
+          "name": "[PAP][mag] SUPABASE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Query do usuário\n{{ $('Extract Data1').first().json.body.message }}\n\n## Resposta base\n{{ $json.response || $json.output || '' }}\n\n## Instruções:\nUse as melhorias encontradas (se houver) para refinar a resposta base. Se nenhuma melhoria for claramente relevante, mantenha a resposta base. Seja conciso e direto.",
+        "options": {
+          "systemMessage": "=Você é um Refiner Agent. Reescreva a resposta base incorporando APENAS melhorias realmente relevantes recuperadas pelo tool 'ImprovementsVectorStoreTool'. Se não houver melhorias relevantes, devolva exatamente a resposta base. Não explique seu processo."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        1056,
+        3984
+      ],
+      "id": "bde0f8a8-3a9c-4a2b-9b4f-7fbd2d1c2c3e",
+      "name": "Refiner Agent"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "response",
+              "value": "={{ $json.output || $json.text || $json.response }}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $('Extract Data1').item.json.body.session_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2d8f9c1-4b5e-4a1f-8e71-8f43a3c2b1a0",
+      "name": "Format Final Response (Refined)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        3984
+      ]
+    },
+    {
+      "parameters": {
         "promptType": "define",
         "text": "={{ $('Extract Data1').first().json.body.message }}",
         "options": {
@@ -768,7 +859,7 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook2",
+            "node": "Refiner Agent",
             "type": "main",
             "index": 0
           }
@@ -928,6 +1019,11 @@
             "node": "Supervisor Agent1",
             "type": "ai_languageModel",
             "index": 0
+          },
+          {
+            "node": "Refiner Agent",
+            "type": "ai_languageModel",
+            "index": 0
           }
         ]
       ]
@@ -960,6 +1056,82 @@
           {
             "node": "RAG Search Agent1",
             "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Improvements Vector Store": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Improvements Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Improvements Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ImprovementsVectorStoreTool": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Improvements Vector Store",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refiner Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response (Refined)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Improvements Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "Refiner Agent",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "ImprovementsVectorStoreTool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Response (Refined)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
             "index": 0
           }
         ]

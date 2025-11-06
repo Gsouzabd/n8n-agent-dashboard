@@ -179,3 +179,5 @@ Se nenhum dos problemas acima se aplicar, o problema pode ser específico do seu
 - O resultado da query de diagnóstico
 - A configuração do nó "Supabase Vector Store"
 
+
+
