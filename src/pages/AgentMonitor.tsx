@@ -394,6 +394,15 @@ export function AgentMonitor() {
                               className="px-2 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-500"
                               onClick={async () => {
                                 const { data: { user } } = await supabase.auth.getUser()
+                                // Atualizar estado local imediatamente (otimistic update)
+                                setAssistRequests((prev) => 
+                                  prev.map((req) => 
+                                    req.id === r.id
+                                      ? { ...req, status: 'in_progress', claimed_by: user?.id || null }
+                                      : req
+                                  )
+                                )
+                                // Atualizar no banco
                                 await supabase
                                   .from('human_assist_requests')
                                   .update({ status: 'in_progress', claimed_by: user?.id || null })
@@ -599,6 +608,15 @@ export function AgentMonitor() {
                       onClick={async () => {
                         if (!selectedAgentId || !selectedSessionId || !pendingAssistForSelected) return
                         const { data: { user } } = await supabase.auth.getUser()
+                        // Atualizar estado local imediatamente (otimistic update)
+                        setAssistRequests((prev) => 
+                          prev.map((r) => 
+                            r.id === pendingAssistForSelected.id
+                              ? { ...r, status: 'in_progress', claimed_by: user?.id || null }
+                              : r
+                          )
+                        )
+                        // Atualizar no banco
                         await supabase
                           .from('human_assist_requests')
                           .update({ status: 'in_progress', claimed_by: user?.id || null })
@@ -613,9 +631,21 @@ export function AgentMonitor() {
                       className="px-3 py-1.5 rounded-md text-sm bg-green-600 text-white hover:bg-green-500 border border-green-400/40 shadow-lg shadow-green-600/20"
                       onClick={async () => {
                         if (!selectedAgentId || !selectedSessionId) return
+                        const resolvedAt = new Date().toISOString()
+                        // Atualizar estado local imediatamente (otimistic update)
+                        setAssistRequests((prev) => 
+                          prev.map((r) => 
+                            r.agent_id === selectedAgentId && 
+                            r.session_id === selectedSessionId && 
+                            (r.status === 'pending' || r.status === 'in_progress')
+                              ? { ...r, status: 'resolved', resolved_at: resolvedAt }
+                              : r
+                          )
+                        )
+                        // Atualizar no banco
                         await supabase
                           .from('human_assist_requests')
-                          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+                          .update({ status: 'resolved', resolved_at: resolvedAt })
                           .eq('agent_id', selectedAgentId)
                           .eq('session_id', selectedSessionId)
                           .in('status', ['pending','in_progress'])
