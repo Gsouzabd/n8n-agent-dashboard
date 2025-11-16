@@ -314,6 +314,115 @@ export const chatService = {
   },
 
   /**
+   * Upload audio blob to Supabase Storage
+   */
+  async uploadAudioToStorage(audioBlob: Blob, sessionId: string): Promise<string> {
+    try {
+      // Generate unique file name
+      const timestamp = Date.now()
+      const random = Math.random().toString(36).substring(7)
+      const fileExt = audioBlob.type.includes('webm') ? 'webm' : 
+                     audioBlob.type.includes('mp3') ? 'mp3' :
+                     audioBlob.type.includes('wav') ? 'wav' : 'webm'
+      const fileName = `${sessionId}/${timestamp}-${random}.${fileExt}`
+      
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('voice-messages')
+        .upload(fileName, audioBlob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: audioBlob.type || 'audio/webm',
+        })
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        throw new Error('Failed to upload audio: ' + uploadError.message)
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('voice-messages')
+        .getPublicUrl(fileName)
+
+      return publicUrl
+    } catch (error) {
+      console.error('Audio upload error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Check if a string is base64 encoded audio
+   */
+  isBase64Audio(str: string): boolean {
+    // Check if string looks like base64 and has reasonable length
+    if (!str || str.length < 100) return false
+    
+    // Base64 pattern (alphanumeric, +, /, =)
+    const base64Pattern = /^[A-Za-z0-9+/]+=*$/
+    if (!base64Pattern.test(str.trim())) return false
+    
+    // Try to decode and check if it's valid audio data
+    try {
+      const binaryString = atob(str.trim())
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      
+      // Check for audio file signatures
+      // WebM: 0x1A 0x45 0xDF 0xA3
+      // MP3: 0xFF 0xFB or 0xFF 0xF3 or 0x49 0x44 0x33 (ID3)
+      // WAV: 0x52 0x49 0x46 0x46 (RIFF)
+      if (bytes.length < 4) return false
+      
+      const signature = bytes.slice(0, 4)
+      const isWebM = signature[0] === 0x1A && signature[1] === 0x45 && signature[2] === 0xDF && signature[3] === 0xA3
+      const isMP3 = (signature[0] === 0xFF && (signature[1] === 0xFB || signature[1] === 0xF3)) ||
+                    (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33)
+      const isWAV = signature[0] === 0x52 && signature[1] === 0x49 && signature[2] === 0x46 && signature[3] === 0x46
+      
+      return isWebM || isMP3 || isWAV
+    } catch {
+      return false
+    }
+  },
+
+  /**
+   * Convert base64 string to audio blob URL
+   */
+  base64ToAudioUrl(base64: string): string {
+    try {
+      // Remove data URL prefix if present
+      const base64Data = base64.replace(/^data:audio\/[^;]+;base64,/, '')
+      const binaryString = atob(base64Data.trim())
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      
+      // Detect MIME type from signature
+      let mimeType = 'audio/webm'
+      if (bytes.length >= 4) {
+        if (bytes[0] === 0xFF && (bytes[1] === 0xFB || bytes[1] === 0xF3)) {
+          mimeType = 'audio/mpeg'
+        } else if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+          mimeType = 'audio/mpeg'
+        } else if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+          mimeType = 'audio/wav'
+        }
+      }
+      
+      const blob = new Blob([bytes], { type: mimeType })
+      return URL.createObjectURL(blob)
+    } catch (error) {
+      console.error('Error converting base64 to audio URL:', error)
+      throw new Error('Failed to convert base64 audio')
+    }
+  },
+
+  /**
    * Send message to n8n webhook and get response
    */
   async sendMessageToN8n(
@@ -366,14 +475,23 @@ export const chatService = {
       const data = await response.json()
 
       // Extract response from n8n
+      let responseText: string
       if (data.response) {
-        return data.response
+        responseText = data.response
       } else if (typeof data === 'string') {
-        return data
+        responseText = data
       } else {
         console.warn('Unexpected response format:', data)
-        return JSON.stringify(data)
+        responseText = JSON.stringify(data)
       }
+
+      // Check if response is base64 audio
+      // If it is, prefix it with a special marker so we can detect it later
+      if (this.isBase64Audio(responseText)) {
+        return `__AUDIO_BASE64__:${responseText}`
+      }
+
+      return responseText
     } catch (error) {
       console.error('Error calling webhook:', error)
       throw new Error('Failed to get response from AI agent')

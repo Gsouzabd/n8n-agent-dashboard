@@ -185,9 +185,9 @@ export function Login() {
               transition={{ delay: 0.5, duration: 0.8 }}
               className="bg-white/10 dark:bg-slate-900/30 backdrop-blur-xl rounded-2xl p-8 border border-white/20 dark:border-slate-700/50"
             >
-              <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-3 bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">
-                Bem-vindo ao Venturize Agents Workspace
-              </h2>
+              {/* <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-3 bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">
+                Bem-vind
+              </h2> */}
               <p className="text-orange-600 dark:text-orange-400 text-lg font-medium">
                 Inteligência Artificial ao seu alcance
               </p>

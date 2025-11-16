@@ -65,6 +65,7 @@ export function KnowledgeBase() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([])
   const [selectedKB, setSelectedKB] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [urlCount, setUrlCount] = useState(0)
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -81,6 +82,7 @@ export function KnowledgeBase() {
     if (selectedKB) {
       loadDocuments(selectedKB)
       loadStats(selectedKB)
+      loadUrlCount(selectedKB)
     }
   }, [selectedKB])
 
@@ -225,6 +227,21 @@ export function KnowledgeBase() {
     setStats(statsData)
   }
 
+  const loadUrlCount = async (kbId: string) => {
+    try {
+      const { count, error } = await supabase
+        .from('knowledge_urls')
+        .select('*', { count: 'exact', head: true })
+        .eq('knowledge_base_id', kbId)
+
+      if (error) throw error
+      setUrlCount(count || 0)
+    } catch (error) {
+      console.error('Erro ao carregar contagem de URLs:', error)
+      setUrlCount(0)
+    }
+  }
+
   const deleteDocument = async (docId: string) => {
     if (!confirm('Tem certeza que deseja excluir este documento e todos os seus chunks?')) return
 
@@ -261,6 +278,7 @@ export function KnowledgeBase() {
     if (selectedKB) {
       loadDocuments(selectedKB)
       loadStats(selectedKB)
+      loadUrlCount(selectedKB)
     }
   }
 
@@ -407,13 +425,20 @@ export function KnowledgeBase() {
         {selectedKB && id && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Base de Conhecimento via URL (Web Scraper)
-              </CardTitle>
-              <CardDescription>
-                Adicione URLs de páginas web para extração automática de conteúdo e vetorização
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Base de Conhecimento via URL (Web Scraper)
+                  </CardTitle>
+                  <CardDescription>
+                    {urlCount > 0 
+                      ? `${urlCount} URL${urlCount !== 1 ? 's' : ''} adicionada${urlCount !== 1 ? 's' : ''} • Adicione URLs de páginas web para extração automática de conteúdo e vetorização`
+                      : 'Adicione URLs de páginas web para extração automática de conteúdo e vetorização'
+                    }
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <UrlKnowledgeForm 
@@ -457,7 +482,7 @@ export function KnowledgeBase() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {documents.map((doc) => {
                   const FileIcon = getFileIcon(doc.file_type)
                   const StatusIcon = getStatusIcon(doc.processing_status)

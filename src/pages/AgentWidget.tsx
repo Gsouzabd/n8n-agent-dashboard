@@ -16,6 +16,7 @@ import {
   Check,
   Plus,
   X,
+  ExternalLink,
 } from 'lucide-react'
 
 interface AgentWidget {
@@ -40,6 +41,7 @@ export function AgentWidget() {
   const [saving, setSaving] = useState(false)
   const [newDomain, setNewDomain] = useState('')
   const [copied, setCopied] = useState<'iframe' | 'js' | null>(null)
+  const [previewKey, setPreviewKey] = useState(0)
 
   useEffect(() => {
     loadWidget()
@@ -146,8 +148,18 @@ export function AgentWidget() {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const getEmbedUrl = () => {
-    return `${window.location.origin}/w/${widget?.widget_id}`
+  const getEmbedUrl = (newSession = false) => {
+    const baseUrl = `${window.location.origin}/w/${widget?.widget_id}`
+    if (newSession) {
+      // Adiciona timestamp para forçar nova sessão
+      return `${baseUrl}?new_session=${Date.now()}`
+    }
+    return baseUrl
+  }
+
+  const handleNewSession = () => {
+    // Força recarregar o iframe com nova sessão
+    setPreviewKey(prev => prev + 1)
   }
 
   const getIframeCode = () => {
@@ -375,20 +387,43 @@ export function AgentWidget() {
             {/* Preview */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Preview
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Preview
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNewSession}
+                      title="Iniciar nova conversa"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Sessão
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getEmbedUrl(true), '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Abrir em Nova Aba
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-auto p-4">
                   <iframe
-                    src={getEmbedUrl()}
+                    key={previewKey}
+                    src={getEmbedUrl(true)}
                     width={widget.width}
                     height={widget.height}
                     frameBorder="0"
                     className="rounded-lg shadow-lg"
                     style={{ maxWidth: '100%' }}
+                    title="Preview do Widget"
                   />
                 </div>
               </CardContent>

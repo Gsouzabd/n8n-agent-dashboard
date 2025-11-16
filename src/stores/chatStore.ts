@@ -17,6 +17,7 @@ interface ChatStore {
   openChat: (agent: Agent, sessionId?: string) => Promise<void>
   closeChat: () => void
   sendMessage: (content: string) => Promise<void>
+  sendAudioMessage: (audioBlob: Blob) => Promise<void>
   loadSession: (sessionId: string) => Promise<void>
   clearMessages: () => Promise<void>
   clearError: () => void
@@ -48,11 +49,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       if (!sid) {
         const user = useAuthStore.getState().user
         if (!user) {
-          set({ error: 'User not authenticated', isLoading: false })
-          return
+          // For widget embed without auth, create anonymous session
+          // Generate a unique session ID for this anonymous user
+          const anonymousSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+          sid = await chatService.getOrCreateSessionByExternal(agent.id, anonymousSessionId)
+        } else {
+          // Get or create session for authenticated user
+          sid = await chatService.getOrCreateSession(agent.id, user.id)
         }
-        // Get or create session for authenticated user
-        sid = await chatService.getOrCreateSession(agent.id, user.id)
       }
       
       // Load messages
@@ -131,6 +135,58 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       console.error('Error sending message:', error)
       set({ 
         error: error instanceof Error ? error.message : 'Failed to send message',
+        isLoading: false 
+      })
+    }
+  },
+
+  // Send audio message
+  sendAudioMessage: async (audioBlob: Blob) => {
+    const { currentAgent, currentSessionId, messages } = get()
+
+    if (!currentAgent || !currentSessionId) {
+      set({ error: 'No active chat session' })
+      return
+    }
+
+    set({ isLoading: true, error: null })
+
+    try {
+      // Upload audio to storage
+      const audioUrl = await chatService.uploadAudioToStorage(audioBlob, currentSessionId)
+
+      // Save user message with audio URL
+      const userMessage = await chatService.saveMessage(
+        currentSessionId,
+        'user',
+        audioUrl
+      )
+
+      // Update UI with user message
+      set({ messages: [...messages, userMessage] })
+
+      // Send to n8n and get response (pass audio URL as message)
+      const responseText = await chatService.sendMessageToN8n(
+        currentAgent,
+        currentSessionId,
+        audioUrl,
+        messages
+      )
+
+      // Save assistant response
+      const assistantMessage = await chatService.saveMessage(
+        currentSessionId,
+        'assistant',
+        responseText
+      )
+
+      // Update UI with assistant response
+      const updatedMessages = [...get().messages, assistantMessage]
+      set({ messages: updatedMessages, isLoading: false })
+    } catch (error) {
+      console.error('Error sending audio message:', error)
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to send audio message',
         isLoading: false 
       })
     }

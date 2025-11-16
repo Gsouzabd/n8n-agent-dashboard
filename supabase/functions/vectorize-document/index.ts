@@ -46,8 +46,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'text-embedding-ada-002',
+        model: 'text-embedding-3-large',
         input: content,
+        dimensions: 3072, // Explicitly request 3072 dimensions
       }),
     })
 

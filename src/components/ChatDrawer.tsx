@@ -1,12 +1,125 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Bot, User, Loader2, AlertCircle, Trash2 } from 'lucide-react'
+import { X, Send, Bot, User, Loader2, AlertCircle, Trash2, Mic, Square, Play, Pause } from 'lucide-react'
 import { useChatStore } from '@/stores/chatStore'
 import { Button } from './ui/Button'
 import { MessageFeedback } from './MessageFeedback'
 import { Badge } from './ui/badge'
 import { chatService } from '@/services/chatService'
 import { useChatStore as useChatStoreHook } from '@/stores/chatStore'
+
+// Audio Player Component
+function AudioPlayer({ messageId, content, role }: { messageId: string; content: string; role: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [audioUrl, setAudioUrl] = useState<string>('')
+
+  // Check if message content is an audio URL
+  const isAudioUrl = (content: string): boolean => {
+    return content.startsWith('http') && (
+      content.includes('voice-messages') ||
+      content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i)
+    )
+  }
+
+  // Get audio URL for message (handles both URL and base64)
+  useEffect(() => {
+    // Check if it's base64 audio
+    if (content.startsWith('__AUDIO_BASE64__:')) {
+      const base64 = content.replace('__AUDIO_BASE64__:', '')
+      const url = chatService.base64ToAudioUrl(base64)
+      setAudioUrl(url)
+    } else if (isAudioUrl(content)) {
+      setAudioUrl(content)
+    }
+  }, [content])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const updateTime = () => setCurrentTime(audio.currentTime)
+    const updateDuration = () => setDuration(audio.duration)
+    const handlePlay = () => setIsPlaying(true)
+    const handlePause = () => setIsPlaying(false)
+    const handleEnded = () => setIsPlaying(false)
+
+    audio.addEventListener('timeupdate', updateTime)
+    audio.addEventListener('loadedmetadata', updateDuration)
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('ended', handleEnded)
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime)
+      audio.removeEventListener('loadedmetadata', updateDuration)
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('ended', handleEnded)
+    }
+  }, [audioUrl])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    if (isPlaying) {
+      audio.pause()
+    } else {
+      audio.play()
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return '0:00'
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (!audioUrl) return null
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 p-2 bg-black/20 rounded-lg">
+        <button
+          onClick={togglePlay}
+          className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 flex items-center justify-center transition-all"
+        >
+          {isPlaying ? (
+            <Pause className="w-5 h-5 text-orange-400" />
+          ) : (
+            <Play className="w-5 h-5 text-orange-400 ml-0.5" />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-orange-500 transition-all"
+                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
+              />
+            </div>
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+        </div>
+      </div>
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        preload="metadata"
+        className="hidden"
+      />
+      <p className="text-xs opacity-60">
+        {role === 'user' ? 'Mensagem de áudio' : 'Resposta de áudio'}
+      </p>
+    </div>
+  )
+}
 
 export function ChatDrawer() {
   const {
@@ -17,6 +130,7 @@ export function ChatDrawer() {
     error,
     closeChat,
     sendMessage,
+    sendAudioMessage,
     clearMessages,
     clearError,
   } = useChatStore()
@@ -26,6 +140,15 @@ export function ChatDrawer() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [feedbackStatus, setFeedbackStatus] = useState<'positive' | 'negative' | null>(null)
+  
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const audioUrlRefs = useRef<Map<string, string>>(new Map())
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -61,6 +184,135 @@ export function ChatDrawer() {
       window.removeEventListener('feedback:updated', onUpdated)
     }
   }, [currentSessionId])
+
+  // Cleanup audio URLs on unmount
+  useEffect(() => {
+    return () => {
+      audioUrlRefs.current.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
+      })
+      audioUrlRefs.current.clear()
+    }
+  }, [])
+
+  // Stop recording when drawer closes
+  useEffect(() => {
+    if (!isDrawerOpen && isRecording) {
+      stopRecording()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawerOpen])
+
+  // Start recording audio
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      })
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        
+        // Stop all tracks
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop())
+          streamRef.current = null
+        }
+
+        // Send audio message
+        if (audioBlob.size > 0) {
+          await sendAudioMessage(audioBlob)
+        }
+
+        setIsRecording(false)
+        setRecordingTime(0)
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current)
+          recordingTimerRef.current = null
+        }
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      useChatStore.setState({ error: 'Erro ao acessar o microfone. Verifique as permissões.' })
+      setIsRecording(false)
+    }
+  }
+
+  // Stop recording
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+  }
+
+  // Format recording time
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Check if message content is an audio URL
+  const isAudioUrl = (content: string): boolean => {
+    return content.startsWith('http') && (
+      content.includes('voice-messages') ||
+      content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i)
+    )
+  }
+
+  // Get audio URL for message (handles both URL and base64)
+  const getAudioUrl = (messageId: string, content: string): string => {
+    // Check if already cached
+    if (audioUrlRefs.current.has(messageId)) {
+      return audioUrlRefs.current.get(messageId)!
+    }
+
+    // Check if it's base64 audio
+    if (content.startsWith('__AUDIO_BASE64__:')) {
+      const base64 = content.replace('__AUDIO_BASE64__:', '')
+      const url = chatService.base64ToAudioUrl(base64)
+      audioUrlRefs.current.set(messageId, url)
+      return url
+    }
+
+    // Check if it's a regular URL
+    if (isAudioUrl(content)) {
+      audioUrlRefs.current.set(messageId, content)
+      return content
+    }
+
+    return ''
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -196,9 +448,18 @@ export function ChatDrawer() {
                         : 'bg-gray-900 border border-gray-800 text-gray-100'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
+                    {/* Render audio player if content is audio */}
+                    {(isAudioUrl(message.content) || message.content.startsWith('__AUDIO_BASE64__:')) ? (
+                      <AudioPlayer 
+                        messageId={message.id}
+                        content={message.content}
+                        role={message.role}
+                      />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {message.content}
+                      </p>
+                    )}
                     <p className="text-xs mt-2 opacity-60">
                       {new Date(message.created_at).toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
@@ -206,7 +467,7 @@ export function ChatDrawer() {
                       })}
                     </p>
 
-                    {message.role === 'assistant' && currentAgent && currentSessionId && (
+                    {message.role === 'assistant' && currentAgent && currentSessionId && !isAudioUrl(message.content) && !message.content.startsWith('__AUDIO_BASE64__:') && (
                       <div className="mt-3">
                         <MessageFeedback
                           messageId={message.id}
@@ -251,7 +512,50 @@ export function ChatDrawer() {
 
             {/* Input */}
             <div className="p-6 border-t border-orange-500/30 bg-gradient-to-r from-orange-500/5 to-transparent">
+              {/* Recording indicator */}
+              {isRecording && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-sm text-red-400 font-medium">
+                      Gravando... {formatRecordingTime(recordingTime)}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={stopRecording}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  >
+                    <Square className="w-4 h-4 mr-1" />
+                    Parar
+                  </Button>
+                </motion.div>
+              )}
               <form onSubmit={handleSubmit} className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isLoading}
+                  className={`rounded-xl transition-all ${
+                    isRecording
+                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                      : 'text-gray-400 hover:text-orange-500 hover:bg-orange-500/10'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
+                >
+                  {isRecording ? (
+                    <Square className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </Button>
                 <input
                   ref={inputRef}
                   type="text"
@@ -259,12 +563,12 @@ export function ChatDrawer() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Digite sua mensagem..."
-                  disabled={isLoading}
+                  disabled={isLoading || isRecording}
                   className="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <Button
                   type="submit"
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim() || isLoading || isRecording}
                   className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white rounded-xl px-6 transition-all shadow-lg shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (

@@ -220,10 +220,62 @@ export function AgentQuality() {
             </h1>
             <p className="text-muted-foreground mt-2">Métricas de feedback e melhoria contínua</p>
           </div>
-          <Button onClick={exportFineTuningDataset} disabled={exporting}>
-            <Download className="h-4 w-4 mr-2" />
-            {exporting ? 'Exportando...' : 'Exportar Fine-tuning Dataset'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  // Tenta chamar via supabase.functions.invoke primeiro
+                  const { data, error } = await supabase.functions.invoke('sync-improvement-to-rag', {
+                    body: { agent_id: id, count: 10 }
+                  })
+                  
+                  if (error) {
+                    // Se falhar, tenta via HTTP direto (fallback)
+                    console.warn('Chamada via invoke falhou, tentando HTTP direto:', error)
+                    const supabaseUrl = supabase.supabaseUrl
+                    const { data: sessionData } = await supabase.auth.getSession()
+                    const token = sessionData?.session?.access_token
+                    
+                    if (!token) {
+                      throw new Error('Não autenticado. Por favor, faça login novamente.')
+                    }
+                    
+                    const httpRes = await fetch(`${supabaseUrl}/functions/v1/sync-improvement-to-rag`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ agent_id: id, count: 10 })
+                    })
+                    
+                    if (!httpRes.ok) {
+                      const errorText = await httpRes.text()
+                      throw new Error(`HTTP ${httpRes.status}: ${errorText}`)
+                    }
+                    
+                    const httpData = await httpRes.json()
+                    alert(`✅ Processados: ${httpData?.processed || 0}, Atualizados: ${httpData?.updated || 0}`)
+                    loadMetrics()
+                    return
+                  }
+                  
+                  alert(`✅ Processados: ${data?.processed || 0}, Atualizados: ${data?.updated || 0}`)
+                  loadMetrics()
+                } catch (e: any) {
+                  console.error('Erro completo:', e)
+                  alert('❌ Erro: ' + (e.message || 'Erro desconhecido') + '\n\nVerifique o console para mais detalhes.')
+                }
+              }}
+            >
+              🔄 Processar Embeddings Pendentes
+            </Button>
+            <Button onClick={exportFineTuningDataset} disabled={exporting}>
+              <Download className="h-4 w-4 mr-2" />
+              {exporting ? 'Exportando...' : 'Exportar Fine-tuning Dataset'}
+            </Button>
+          </div>
         </div>
 
         {/* Overview Metrics */}
@@ -657,6 +709,59 @@ export function AgentQuality() {
                       .update(updateData)
                       .eq('id', improveTargetId)
                     if (error) throw error
+                    
+                    // Trigger embedding generation for the new improvement
+                    // O trigger já inseriu em agent_improvements, agora geramos o embedding
+                    if (suggestion.trim()) {
+                      const { data: feedback } = await supabase
+                        .from('message_feedback')
+                        .select('agent_id')
+                        .eq('id', improveTargetId)
+                        .single()
+                      
+                      if (feedback?.agent_id) {
+                        // Aguarda um pouco para garantir que o trigger processou
+                        await new Promise(resolve => setTimeout(resolve, 500))
+                        
+                        // Chama edge function para gerar embedding (não bloqueia UI)
+                        // Usa a mesma lógica do botão de processar pendentes
+                        supabase.functions.invoke('sync-improvement-to-rag', {
+                          body: { agent_id: feedback.agent_id, count: 1 }
+                        })
+                        .then((result: any) => {
+                          if (result?.error) {
+                            console.error('Erro ao gerar embedding:', result.error)
+                            // Tenta fallback via HTTP direto
+                            return supabase.auth.getSession().then(({ data: sessionData }) => {
+                              const token = sessionData?.session?.access_token
+                              if (!token) return
+                              
+                              return fetch(`${supabase.supabaseUrl}/functions/v1/sync-improvement-to-rag`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({ agent_id: feedback.agent_id, count: 1 })
+                              }).then(res => res.json())
+                            })
+                          } else {
+                            console.log('✅ Embedding gerado com sucesso:', result?.data)
+                            return result?.data
+                          }
+                        })
+                        .then((data: any) => {
+                          if (data) {
+                            console.log('Embedding processado:', data)
+                          }
+                        })
+                        .catch(err => {
+                          console.warn('Embedding será processado em background. Você pode usar o botão "Processar Embeddings Pendentes" depois.', err.message)
+                          // Não é crítico, pode ser processado depois
+                        })
+                      }
+                    }
+                    
                     setRecentFeedbacks((prev) => prev.map((f) => f.id === improveTargetId ? { ...f, issue_category: issueCategory, improvement_suggestion: suggestion.trim() || null } as any : f))
                     setImproveOpen(false)
                   } catch (e) {

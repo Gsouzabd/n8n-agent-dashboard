@@ -1,10 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { Textarea } from './ui/Textarea'
 import { supabase } from '@/lib/supabase'
-import { Globe, Plus, Loader2, X, RefreshCw } from 'lucide-react'
+import { Globe, Plus, Loader2, X, RefreshCw, Upload, Download } from 'lucide-react'
+import Papa from 'papaparse'
+// @ts-ignore - xlsx types may not be fully recognized
+import * as XLSX from 'xlsx'
 
 interface UrlKnowledgeFormProps {
   knowledgeBaseId: string
@@ -36,6 +39,9 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
   const [urls, setUrls] = useState<KnowledgeUrl[]>([])
   const [loadingUrls, setLoadingUrls] = useState(true)
   const [showAntiScraperHelp, setShowAntiScraperHelp] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, success: 0, failed: 0, failedUrls: [] as string[] })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load URLs on mount
   useEffect(() => {
@@ -67,6 +73,98 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
        u.error_message?.toLowerCase().includes('insuficiente'))
     )
   }, [urls])
+
+  const parseCSV = (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results: Papa.ParseResult<any>) => {
+          try {
+            const urls: string[] = []
+            const data = results.data as any[]
+            
+            // Find the URL column (case-insensitive)
+            const urlColumnKey = Object.keys(data[0] || {}).find(
+              key => key.toLowerCase().trim() === 'url'
+            )
+            
+            if (!urlColumnKey) {
+              reject(new Error('Coluna "url" não encontrada na planilha'))
+              return
+            }
+            
+            data.forEach((row) => {
+              const urlValue = row[urlColumnKey]
+              if (urlValue && typeof urlValue === 'string' && urlValue.trim()) {
+                urls.push(urlValue.trim())
+              }
+            })
+            
+            resolve(urls)
+          } catch (error) {
+            reject(error)
+          }
+        },
+        error: (error: Error) => {
+          reject(error)
+        },
+      })
+    })
+  }
+
+  const parseXLSX = (file: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const workbook = XLSX.read(data, { type: 'array' })
+          
+          // Get first sheet
+          const firstSheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[firstSheetName]
+          
+          // Convert to JSON
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
+          
+          if (jsonData.length === 0) {
+            reject(new Error('Planilha vazia'))
+            return
+          }
+          
+          // Find the URL column (case-insensitive)
+          const urlColumnKey = Object.keys(jsonData[0]).find(
+            key => key.toLowerCase().trim() === 'url'
+          )
+          
+          if (!urlColumnKey) {
+            reject(new Error('Coluna "url" não encontrada na planilha'))
+            return
+          }
+          
+          const urls: string[] = []
+          jsonData.forEach((row) => {
+            const urlValue = row[urlColumnKey]
+            if (urlValue && typeof urlValue === 'string' && urlValue.trim()) {
+              urls.push(urlValue.trim())
+            }
+          })
+          
+          resolve(urls)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      
+      reader.onerror = () => {
+        reject(new Error('Erro ao ler arquivo'))
+      }
+      
+      reader.readAsArrayBuffer(file)
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -149,6 +247,170 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
     }
   }
 
+  const validateUrl = (urlString: string): boolean => {
+    try {
+      const urlObj = new URL(urlString)
+      return ['http:', 'https:'].includes(urlObj.protocol)
+    } catch {
+      return false
+    }
+  }
+
+  const processUrlsBatch = async (urlsToProcess: string[]) => {
+    // Remove duplicates and validate
+    const uniqueUrls = Array.from(new Set(urlsToProcess))
+    const validUrls = uniqueUrls.filter(validateUrl)
+    const invalidUrls = uniqueUrls.filter(url => !validateUrl(url))
+    
+    if (validUrls.length === 0) {
+      throw new Error('Nenhuma URL válida encontrada na planilha')
+    }
+    
+    if (invalidUrls.length > 0) {
+      console.warn(`${invalidUrls.length} URL(s) inválida(s) ignorada(s):`, invalidUrls)
+    }
+    
+    setImportProgress({
+      current: 0,
+      total: validUrls.length,
+      success: 0,
+      failed: 0,
+      failedUrls: [],
+    })
+    
+    const successUrls: string[] = []
+    const failedUrls: string[] = []
+    
+    // Process each URL
+    for (let i = 0; i < validUrls.length; i++) {
+      const urlToProcess = validUrls[i]
+      setImportProgress(prev => ({ ...prev, current: i + 1 }))
+      
+      try {
+        // Create URL record
+        const { data: urlRecord, error: insertError } = await supabase
+          .from('knowledge_urls')
+          .insert({
+            agent_id: agentId,
+            knowledge_base_id: knowledgeBaseId,
+            url: urlToProcess,
+            document_description: null,
+            tags: [],
+            auto_refresh: false,
+            status: 'pending',
+          })
+          .select()
+          .single()
+        
+        if (insertError) {
+          // Check if it's a duplicate URL error
+          if (insertError.code === '23505') {
+            // Duplicate URL - skip it
+            continue
+          }
+          throw insertError
+        }
+        
+        // Trigger web scraper
+        const { error: functionError } = await supabase.functions.invoke('web-scraper', {
+          body: { urlId: urlRecord.id },
+        })
+        
+        if (functionError) {
+          console.error('Web scraper error:', functionError)
+          // Don't throw - let it process in background
+        }
+        
+        successUrls.push(urlToProcess)
+        setImportProgress(prev => ({ ...prev, success: prev.success + 1 }))
+      } catch (error: any) {
+        console.error(`Error processing URL ${urlToProcess}:`, error)
+        failedUrls.push(urlToProcess)
+        setImportProgress(prev => ({
+          ...prev,
+          failed: prev.failed + 1,
+          failedUrls: [...prev.failedUrls, urlToProcess],
+        }))
+      }
+    }
+    
+    // Reload URLs
+    await loadUrls()
+    
+    if (onSuccess) {
+      onSuccess()
+    }
+    
+    return {
+      total: validUrls.length,
+      success: successUrls.length,
+      failed: failedUrls.length,
+      failedUrls,
+      invalidCount: invalidUrls.length,
+    }
+  }
+
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    const fileExtension = file.name.split('.').pop()?.toLowerCase()
+    
+    if (fileExtension !== 'csv' && fileExtension !== 'xlsx') {
+      alert('❌ Formato de arquivo não suportado. Use CSV ou XLSX.')
+      return
+    }
+    
+    setImporting(true)
+    setImportProgress({ current: 0, total: 0, success: 0, failed: 0, failedUrls: [] })
+    
+    try {
+      let urls: string[] = []
+      
+      if (fileExtension === 'csv') {
+        urls = await parseCSV(file)
+      } else {
+        urls = await parseXLSX(file)
+      }
+      
+      if (urls.length === 0) {
+        throw new Error('Nenhuma URL encontrada na planilha')
+      }
+      
+      const result = await processUrlsBatch(urls)
+      
+      // Show result message
+      let message = `✅ Importação concluída!\n\n`
+      message += `Total processado: ${result.total}\n`
+      message += `Sucesso: ${result.success}\n`
+      if (result.failed > 0) {
+        message += `Falhas: ${result.failed}\n`
+      }
+      if (result.invalidCount > 0) {
+        message += `URLs inválidas ignoradas: ${result.invalidCount}\n`
+      }
+      
+      if (result.failedUrls.length > 0) {
+        message += `\nURLs que falharam:\n${result.failedUrls.slice(0, 5).join('\n')}`
+        if (result.failedUrls.length > 5) {
+          message += `\n... e mais ${result.failedUrls.length - 5}`
+        }
+      }
+      
+      alert(message)
+    } catch (error: any) {
+      console.error('Error importing file:', error)
+      alert('❌ Erro ao importar planilha: ' + error.message)
+    } finally {
+      setImporting(false)
+      setImportProgress({ current: 0, total: 0, success: 0, failed: 0, failedUrls: [] })
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   const handleDelete = async (urlId: string) => {
     if (!confirm('Remover esta URL da base de conhecimento?')) return
 
@@ -206,10 +468,48 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
       {/* Add URL Button */}
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">URLs na Base de Conhecimento</h3>
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
-          {showForm ? <X className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-          {showForm ? 'Cancelar' : 'Adicionar URL'}
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx"
+            onChange={handleFileImport}
+            className="hidden"
+            id="file-import"
+            disabled={importing}
+          />
+          <Button
+            onClick={() => {
+              const link = document.createElement('a')
+              link.href = '/modelo-importacao/Modelo importaçao URLs.xlsx'
+              link.download = 'Modelo importação URLs.xlsx'
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+            }}
+            variant="outline"
+            title="Baixar modelo de planilha"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Modelo
+          </Button>
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            disabled={importing}
+          >
+            {importing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4 mr-2" />
+            )}
+            {importing ? 'Importando...' : 'Importar Planilha'}
+          </Button>
+          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
+            {showForm ? <X className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+            {showForm ? 'Cancelar' : 'Adicionar URL'}
+          </Button>
+        </div>
       </div>
 
       {/* Add URL Form */}
@@ -268,6 +568,31 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
         </form>
       )}
 
+      {/* Import Progress */}
+      {importing && importProgress.total > 0 && (
+        <div className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+          <div className="flex items-center gap-2 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Processando importação...
+            </span>
+          </div>
+          <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+            {importProgress.current} de {importProgress.total} URLs processadas
+          </div>
+          <div className="w-full bg-blue-200 dark:bg-blue-900 rounded-full h-2">
+            <div
+              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+            />
+          </div>
+          <div className="flex gap-4 mt-2 text-xs text-blue-700 dark:text-blue-300">
+            <span>✓ Sucesso: {importProgress.success}</span>
+            {importProgress.failed > 0 && <span>✗ Falhas: {importProgress.failed}</span>}
+          </div>
+        </div>
+      )}
+
       {/* Anti-scraper notice */}
       {antiScraperFailures.length > 0 && (
         <div className="p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-100">
@@ -294,7 +619,7 @@ export function UrlKnowledgeForm({ knowledgeBaseId, agentId, onSuccess }: UrlKno
       )}
 
       {/* URLs List */}
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
         {loadingUrls ? (
           <div className="text-center py-8 text-gray-500">Carregando...</div>
         ) : urls.length === 0 ? (

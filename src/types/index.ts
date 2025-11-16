@@ -72,3 +72,22 @@ export interface ChatMessage {
   created_at: string
 }
 
+export interface AgentHandoffConfig {
+  id: string
+  agent_id: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentHandoffTrigger {
+  id: string
+  agent_id: string
+  trigger_type: 'keyword' | 'attempts' | 'sentiment'
+  value: string
+  matching_type?: 'exact' | 'partial' | 'case_insensitive'
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+

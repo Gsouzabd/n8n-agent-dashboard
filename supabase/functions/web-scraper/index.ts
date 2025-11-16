@@ -199,7 +199,7 @@ serve(async (req) => {
 
     // Generate embeddings and save chunks
     let totalEmbeddingTokens = 0
-    const embeddingModel = 'text-embedding-3-small'
+    const embeddingModel = 'text-embedding-3-large'
     
     for (let i = 0; i < chunks.length; i++) {
       let embedding = null
@@ -218,6 +218,7 @@ serve(async (req) => {
               model: embeddingModel,
               input: chunks[i],
               encoding_format: 'float',
+              dimensions: 3072, // Explicitly request 3072 dimensions
             }),
           })
           
@@ -242,32 +243,54 @@ serve(async (req) => {
       }
 
       // Insert document with or without embedding
-      const insertResult = await supabaseClient.from('knowledge_documents').insert({
-        knowledge_base_id: urlRecord.knowledge_base_id,
-        organization_id: organizationId,
-        agent_id: agentId,
-        content: chunks[i],
-        embedding: embedding,
-        file_name: `${title} (Chunk ${i + 1}/${chunks.length})`,
-        file_type: 'text/html',
-        processing_status: 'completed',
-        metadata: {
-          source_url: urlRecord.url,
-          source_type: 'url',
-          chunk_index: i,
-          total_chunks: chunks.length,
-          page_title: title,
-          scraped_at: new Date().toISOString(),
-          agent_id: agentId,
-          organization_id: organizationId,
+      try {
+        const insertData: any = {
           knowledge_base_id: urlRecord.knowledge_base_id,
-        },
-        document_description: urlRecord.document_description,
-        tags: urlRecord.tags,
-      })
-      
-      if (insertResult.error) {
-        console.error(`Failed to insert chunk ${i}:`, insertResult.error)
+          organization_id: organizationId,
+          agent_id: agentId,
+          content: chunks[i],
+          file_name: `${title} (Chunk ${i + 1}/${chunks.length})`,
+          file_type: 'text/html',
+          processing_status: 'completed',
+          metadata: {
+            source_url: urlRecord.url,
+            source_type: 'url',
+            chunk_index: i,
+            total_chunks: chunks.length,
+            page_title: title,
+            scraped_at: new Date().toISOString(),
+            agent_id: agentId,
+            organization_id: organizationId,
+            knowledge_base_id: urlRecord.knowledge_base_id,
+          },
+        }
+
+        // Only add embedding if it was generated successfully
+        if (embedding && Array.isArray(embedding) && embedding.length === 3072) {
+          insertData.embedding = embedding
+        } else if (embedding) {
+          console.warn(`Embedding dimension mismatch. Expected 3072, got ${embedding?.length || 0}. Skipping embedding.`)
+        }
+
+        // Add optional fields if they exist
+        if (urlRecord.document_description) {
+          insertData.document_description = urlRecord.document_description
+        }
+        if (urlRecord.tags && Array.isArray(urlRecord.tags) && urlRecord.tags.length > 0) {
+          insertData.tags = urlRecord.tags
+        }
+
+        const insertResult = await supabaseClient.from('knowledge_documents').insert(insertData)
+        
+        if (insertResult.error) {
+          console.error(`Failed to insert chunk ${i + 1}/${chunks.length}:`, JSON.stringify(insertResult.error, null, 2))
+          throw new Error(`Insert failed: ${insertResult.error.message}`)
+        } else {
+          console.log(`✅ Successfully inserted chunk ${i + 1}/${chunks.length}`)
+        }
+      } catch (insertError: any) {
+        console.error(`Error inserting chunk ${i + 1}:`, insertError)
+        // Continue with other chunks but log the error
       }
     }
 
