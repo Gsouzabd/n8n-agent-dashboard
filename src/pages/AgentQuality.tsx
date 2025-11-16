@@ -601,9 +601,60 @@ export function AgentQuality() {
                   if (!improveTargetId) return
                   setSavingImprove(true)
                   try {
+                    // Buscar feedback existente para preservar user_message
+                    const { data: existingFeedback } = await supabase
+                      .from('message_feedback')
+                      .select('user_message')
+                      .eq('id', improveTargetId)
+                      .single()
+                    
+                    // Se não tiver user_message, buscar da última mensagem do usuário
+                    let userMessage = existingFeedback?.user_message
+                    if (!userMessage) {
+                      const { data: feedbackWithMessage } = await supabase
+                        .from('message_feedback')
+                        .select('message_id')
+                        .eq('id', improveTargetId)
+                        .single()
+                      
+                      if (feedbackWithMessage?.message_id) {
+                        // Buscar a última mensagem do usuário antes da mensagem do assistente
+                        const { data: assistantMsg } = await supabase
+                          .from('chat_messages')
+                          .select('created_at, session_id')
+                          .eq('id', feedbackWithMessage.message_id)
+                          .single()
+                        
+                        if (assistantMsg) {
+                          const { data: userMsg } = await supabase
+                            .from('chat_messages')
+                            .select('content')
+                            .eq('session_id', assistantMsg.session_id)
+                            .eq('role', 'user')
+                            .lt('created_at', assistantMsg.created_at)
+                            .order('created_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle()
+                          
+                          if (userMsg) {
+                            userMessage = userMsg.content
+                          }
+                        }
+                      }
+                    }
+                    
+                    // Atualizar preservando user_message
+                    const updateData: Record<string, unknown> = { 
+                      issue_category: issueCategory, 
+                      improvement_suggestion: suggestion.trim() || null 
+                    }
+                    if (userMessage) {
+                      updateData.user_message = userMessage
+                    }
+                    
                     const { error } = await supabase
                       .from('message_feedback')
-                      .update({ issue_category: issueCategory, improvement_suggestion: suggestion.trim() || null })
+                      .update(updateData)
                       .eq('id', improveTargetId)
                     if (error) throw error
                     setRecentFeedbacks((prev) => prev.map((f) => f.id === improveTargetId ? { ...f, issue_category: issueCategory, improvement_suggestion: suggestion.trim() || null } as any : f))
