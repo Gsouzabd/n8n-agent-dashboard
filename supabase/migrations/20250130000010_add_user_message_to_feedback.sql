@@ -13,3 +13,4 @@ CREATE INDEX IF NOT EXISTS idx_message_feedback_user_message
 -- Add comment explaining the column purpose
 COMMENT ON COLUMN message_feedback.user_message IS 'Stores the last user message (question) that preceded the assistant response being feedbacked. Provides context for understanding the feedback.';
 
+
