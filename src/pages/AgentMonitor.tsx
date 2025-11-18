@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/badge'
 import { Instagram, MessageCircle, Trash2 } from 'lucide-react'
 import { chatService } from '@/services/chatService'
+import { AudioPlayer } from '@/components/AudioPlayer'
+import { linkifyText } from '@/lib/utils'
 
 type SessionRow = {
   id: string
@@ -673,7 +675,16 @@ export function AgentMonitor() {
                             {m.author_user_id ? `Atendente ${String(m.author_user_id).slice(0, 8)}…` : 'Atendente'}
                           </div>
                         )}
-                        <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                        {/* Render audio player if content is audio */}
+                        {((m.content.startsWith('http') && (m.content.includes('voice-messages') || m.content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i))) || m.content.startsWith('__AUDIO_BASE64__:')) ? (
+                          <AudioPlayer 
+                            messageId={m.id}
+                            content={m.content}
+                            role={m.role}
+                          />
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words">{linkifyText(m.content)}</div>
+                        )}
                         <div className="text-[10px] opacity-60 mt-1">{new Date(m.created_at).toLocaleTimeString('pt-BR')}</div>
                       </div>
                     </div>

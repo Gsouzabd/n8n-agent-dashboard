@@ -3,6 +3,7 @@ export interface Agent {
   user_id: string
   name: string
   description?: string
+  icon_url?: string
   webhook_url?: string
   webhook_method: string
   webhook_path?: string
@@ -10,6 +11,8 @@ export interface Agent {
   auth_username?: string
   auth_password?: string
   system_prompt?: string
+  whatsapp_phone_id?: string
+  whatsapp_token?: string
   created_at: string
   updated_at: string
 }

@@ -14,6 +14,7 @@ export type Database = {
           user_id: string
           name: string
           description: string | null
+          icon_url: string | null
           webhook_url: string | null
           webhook_method: string
           webhook_path: string | null
@@ -21,6 +22,8 @@ export type Database = {
           auth_username: string | null
           auth_password: string | null
           system_prompt: string | null
+          whatsapp_phone_id: string | null
+          whatsapp_token: string | null
           created_at: string
           updated_at: string
         }
@@ -29,6 +32,7 @@ export type Database = {
           user_id: string
           name: string
           description?: string | null
+          icon_url?: string | null
           webhook_url?: string | null
           webhook_method?: string
           webhook_path?: string | null
@@ -36,6 +40,8 @@ export type Database = {
           auth_username?: string | null
           auth_password?: string | null
           system_prompt?: string | null
+          whatsapp_phone_id?: string | null
+          whatsapp_token?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -44,6 +50,7 @@ export type Database = {
           user_id?: string
           name?: string
           description?: string | null
+          icon_url?: string | null
           webhook_url?: string | null
           webhook_method?: string
           webhook_path?: string | null
@@ -51,6 +58,8 @@ export type Database = {
           auth_username?: string | null
           auth_password?: string | null
           system_prompt?: string | null
+          whatsapp_phone_id?: string | null
+          whatsapp_token?: string | null
           created_at?: string
           updated_at?: string
         }

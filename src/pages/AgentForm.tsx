@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/Label'
 import { Textarea } from '@/components/ui/Textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Layout } from '@/components/Layout'
-import { ArrowLeft, Save, Code, Edit, Trash2, X, Check } from 'lucide-react'
+import { ArrowLeft, Save, Code, Edit, Trash2, X, Check, Upload, Image as ImageIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { handoffService } from '@/services/handoffService'
 import { AgentHandoffTrigger } from '@/types'
@@ -20,6 +20,7 @@ import { AgentHandoffTrigger } from '@/types'
 const agentSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   description: z.string().optional(),
+  icon_url: z.string().url('URL inválida').optional().or(z.literal('')),
   system_prompt: z.string().optional(),
   webhook_url: z.string().url('URL inválida').optional().or(z.literal('')),
   webhook_method: z.string().default('POST'),
@@ -27,6 +28,8 @@ const agentSchema = z.object({
   auth_type: z.string().default('none'),
   auth_username: z.string().optional(),
   auth_password: z.string().optional(),
+  whatsapp_phone_id: z.string().optional(),
+  whatsapp_token: z.string().optional(),
 })
 
 type AgentFormData = z.infer<typeof agentSchema>
@@ -39,7 +42,7 @@ export function AgentForm() {
   const { currentOrganization } = useOrganization()
   const [loading, setLoading] = useState(false)
   const [showJson, setShowJson] = useState(false)
-  const [activeTab, setActiveTab] = useState<'basic' | 'webhook' | 'handoff'>('basic')
+  const [activeTab, setActiveTab] = useState<'basic' | 'webhook' | 'handoff' | 'whatsapp'>('basic')
   const [handoffEnabled, setHandoffEnabled] = useState(false)
   const [triggers, setTriggers] = useState<AgentHandoffTrigger[]>([])
   const [editingTrigger, setEditingTrigger] = useState<AgentHandoffTrigger | null>(null)
@@ -49,6 +52,8 @@ export function AgentForm() {
     matching_type: 'exact' as 'exact' | 'partial' | 'case_insensitive' | undefined,
   })
   const [loadingHandoff, setLoadingHandoff] = useState(false)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
+  const [iconPreview, setIconPreview] = useState<string | null>(null)
 
   const {
     register,
@@ -73,6 +78,16 @@ export function AgentForm() {
     }
   }, [id])
 
+  // Update icon preview when icon_url changes
+  useEffect(() => {
+    const iconUrl = formValues.icon_url
+    if (iconUrl && iconUrl.trim()) {
+      setIconPreview(iconUrl)
+    } else {
+      setIconPreview(null)
+    }
+  }, [formValues.icon_url])
+
   const loadAgent = async () => {
     try {
       const { data, error } = await supabase
@@ -83,10 +98,81 @@ export function AgentForm() {
 
       if (error) throw error
       reset(data)
+      if (data.icon_url) {
+        setIconPreview(data.icon_url)
+      }
     } catch (error) {
       console.error('Erro ao carregar agente:', error)
       alert('Erro ao carregar agente')
       navigate('/')
+    }
+  }
+
+  const handleIconUpload = async (file: File) => {
+    if (!user || !id) {
+      alert('É necessário estar editando um agente para fazer upload de ícone')
+      return
+    }
+
+    setUploadingIcon(true)
+    try {
+      // Validate file type
+      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml']
+      if (!validTypes.includes(file.type)) {
+        alert('Tipo de arquivo inválido. Use PNG, JPEG, GIF, WEBP ou SVG.')
+        return
+      }
+
+      // Validate file size (5MB)
+      if (file.size > 5242880) {
+        alert('Arquivo muito grande. Tamanho máximo: 5MB')
+        return
+      }
+
+      // Generate unique file name
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('agent-icons')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+        })
+
+      if (uploadError) {
+        // If file exists, try to replace it
+        if (uploadError.message.includes('already exists')) {
+          const { error: replaceError } = await supabase.storage
+            .from('agent-icons')
+            .update(fileName, file, {
+              cacheControl: '3600',
+              contentType: file.type,
+            })
+          
+          if (replaceError) throw replaceError
+        } else {
+          throw uploadError
+        }
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('agent-icons')
+        .getPublicUrl(fileName)
+
+      // Update form with new URL
+      reset({ ...formValues, icon_url: publicUrl })
+      setIconPreview(publicUrl)
+
+      alert('✅ Ícone enviado com sucesso!')
+    } catch (error: any) {
+      console.error('Erro ao fazer upload do ícone:', error)
+      alert('❌ Erro ao enviar ícone: ' + (error.message || 'Erro desconhecido'))
+    } finally {
+      setUploadingIcon(false)
     }
   }
 
@@ -238,19 +324,22 @@ export function AgentForm() {
 
         if (error) throw error
         alert('Agente atualizado com sucesso!')
+        navigate('/')
       } else {
-        const { error } = await supabase
+        const { data: newAgent, error } = await supabase
           .from('agents')
           .insert([{ 
             ...data, 
             user_id: user.id,
             organization_id: currentOrganization.id 
           }])
+          .select()
+          .single()
 
         if (error) throw error
-        alert('Agente criado com sucesso!')
+        alert('Agente criado com sucesso! Agora você pode fazer upload de um ícone editando o agente.')
+        navigate(`/agents/${newAgent.id}/edit`)
       }
-      navigate('/')
     } catch (error: any) {
       console.error('Erro ao salvar agente:', error)
       alert('Erro ao salvar agente: ' + error.message)
@@ -368,6 +457,17 @@ export function AgentForm() {
               >
                 Handoff
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('whatsapp')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'whatsapp'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                }`}
+              >
+                WhatsApp
+              </button>
             </nav>
           </div>
 
@@ -401,6 +501,82 @@ export function AgentForm() {
                   rows={3}
                   {...register('description')}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="icon_url" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Ícone do Agente
+                </Label>
+                
+                {/* Preview */}
+                {iconPreview && (
+                  <div className="relative w-20 h-20 rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden bg-gray-100 dark:bg-gray-800">
+                    <img 
+                      src={iconPreview} 
+                      alt="Preview do ícone" 
+                      className="w-full h-full object-cover"
+                      onError={() => setIconPreview(null)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIconPreview(null)
+                        reset({ ...formValues, icon_url: '' })
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      title="Remover ícone"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Upload button (only when editing) */}
+                {isEditing && (
+                  <div className="flex gap-2">
+                    <label
+                      htmlFor="icon-upload"
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 cursor-pointer transition-colors ${
+                        uploadingIcon
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploadingIcon ? 'Enviando...' : 'Upload de Imagem'}
+                    </label>
+                    <input
+                      id="icon-upload"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleIconUpload(file)
+                        e.target.value = '' // Reset input
+                      }}
+                      disabled={uploadingIcon}
+                    />
+                  </div>
+                )}
+
+                {/* URL input */}
+                <Input
+                  id="icon_url"
+                  type="url"
+                  placeholder="https://exemplo.com/icone.png ou faça upload acima"
+                  {...register('icon_url')}
+                />
+                {errors.icon_url && (
+                  <p className="text-sm text-destructive">{errors.icon_url.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {isEditing 
+                    ? 'Faça upload de uma imagem ou cole uma URL do ícone do agente'
+                    : 'URL da imagem do ícone do agente (será exibido no chat). Após criar o agente, você poderá fazer upload de uma imagem.'
+                  }
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -714,6 +890,107 @@ export function AgentForm() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tab: WhatsApp */}
+          {activeTab === 'whatsapp' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuração do WhatsApp Business</CardTitle>
+                <CardDescription>
+                  Configure a integração com WhatsApp Business API para enviar e receber mensagens
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp_phone_id">ID do Telefone</Label>
+                  <Input
+                    id="whatsapp_phone_id"
+                    placeholder="Ex: 123456789012345"
+                    {...register('whatsapp_phone_id')}
+                  />
+                  {errors.whatsapp_phone_id && (
+                    <p className="text-sm text-destructive">{errors.whatsapp_phone_id.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    ID do número de telefone do WhatsApp Business API
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp_token">Token de Acesso</Label>
+                  <Input
+                    id="whatsapp_token"
+                    type="password"
+                    placeholder="Cole o token de acesso aqui"
+                    {...register('whatsapp_token')}
+                  />
+                  {errors.whatsapp_token && (
+                    <p className="text-sm text-destructive">{errors.whatsapp_token.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Token de acesso permanente do WhatsApp Business API
+                  </p>
+                </div>
+
+                {/* Documentação */}
+                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    Como obter as credenciais do WhatsApp Business API
+                  </h3>
+                  <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>
+                        Acesse o{' '}
+                        <a
+                          href="https://business.facebook.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline font-medium"
+                        >
+                          Meta Business Manager
+                        </a>
+                      </li>
+                      <li>Navegue até a seção "WhatsApp" no menu lateral</li>
+                      <li>
+                        Selecione ou crie um aplicativo WhatsApp Business e vá em "Configurações"
+                      </li>
+                      <li>
+                        <strong>Para obter o ID do Telefone:</strong>
+                        <ul className="list-disc list-inside ml-4 mt-1">
+                          <li>Vá em "Números de telefone"</li>
+                          <li>Selecione o número desejado</li>
+                          <li>O ID do telefone estará visível na URL ou nas informações do número</li>
+                        </ul>
+                      </li>
+                      <li>
+                        <strong>Para obter o Token de Acesso:</strong>
+                        <ul className="list-disc list-inside ml-4 mt-1">
+                          <li>Vá em "Tokens de acesso" ou "Access Tokens"</li>
+                          <li>Clique em "Gerar token" ou "Create token"</li>
+                          <li>Selecione as permissões necessárias (whatsapp_business_messaging, whatsapp_business_management)</li>
+                          <li>Copie o token gerado e cole no campo acima</li>
+                          <li>
+                            <strong>Importante:</strong> Salve o token em local seguro, pois ele não será exibido novamente
+                          </li>
+                        </ul>
+                      </li>
+                    </ol>
+                    <div className="mt-3 pt-3 border-t border-blue-300 dark:border-blue-700">
+                      <p className="font-medium mb-1">Documentação oficial:</p>
+                      <a
+                        href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-200"
+                      >
+                        https://developers.facebook.com/docs/whatsapp/cloud-api/get-started
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

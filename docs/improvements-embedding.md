@@ -5,6 +5,11 @@
 Quando um feedback com `improvement_suggestion` é salvo:
 
 1. **Trigger automático** (`trg_capture_feedback_improvement`): Insere o conteúdo em `agent_improvements` (sem embedding ainda)
+   - **Conteúdo completo incluído:**
+     - Mensagem original do assistente (do `chat_messages`)
+     - Categoria do problema (`issue_category`)
+     - Sugestão de melhoria (`improvement_suggestion`)
+   - Isso dá mais contexto ao RAG para buscar melhorias relevantes
 2. **Frontend** (`AgentQuality.tsx`): Chama automaticamente a edge function `sync-improvement-to-rag` para gerar o embedding
 3. **Edge Function** (`sync-improvement-to-rag`): Gera embedding via OpenAI e atualiza o registro
 

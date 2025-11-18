@@ -234,6 +234,18 @@ export const chatService = {
     role: 'user' | 'assistant' | 'human',
     content: string
   ): Promise<ChatMessage> {
+    // First, verify that the session exists
+    const { data: sessionCheck, error: sessionError } = await supabase
+      .from('chat_sessions')
+      .select('id')
+      .eq('id', sessionId)
+      .single()
+
+    if (sessionError || !sessionCheck) {
+      console.error('Session does not exist:', sessionId, sessionError)
+      throw new Error(`Session ${sessionId} does not exist. Please refresh and try again.`)
+    }
+
     const { data: authRes } = await supabase.auth.getUser()
     const authorId = authRes?.user?.id ?? null
     const meta = (authRes?.user as any)?.user_metadata || {}

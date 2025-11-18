@@ -91,8 +91,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sendMessage: async (content: string) => {
     const { currentAgent, currentSessionId, messages } = get()
 
-    if (!currentAgent || !currentSessionId) {
-      set({ error: 'No active chat session' })
+    if (!currentAgent) {
+      set({ error: 'No active agent' })
       return
     }
 
@@ -103,9 +103,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ isLoading: true, error: null })
 
     try {
+      // Ensure we have a valid session
+      let sessionId = currentSessionId
+      if (!sessionId) {
+        // Create a new session if we don't have one
+        const user = useAuthStore.getState().user
+        if (user) {
+          sessionId = await chatService.getOrCreateSession(currentAgent.id, user.id)
+        } else {
+          // For anonymous users, create external session
+          const anonymousSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+          sessionId = await chatService.getOrCreateSessionByExternal(currentAgent.id, anonymousSessionId)
+        }
+        set({ currentSessionId: sessionId })
+      }
+
       // Save user message
       const userMessage = await chatService.saveMessage(
-        currentSessionId,
+        sessionId,
         'user',
         content
       )
@@ -116,14 +131,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Send to n8n and get response
       const responseText = await chatService.sendMessageToN8n(
         currentAgent,
-        currentSessionId,
+        sessionId,
         content,
         messages
       )
 
       // Save assistant response
       const assistantMessage = await chatService.saveMessage(
-        currentSessionId,
+        sessionId,
         'assistant',
         responseText
       )
@@ -144,20 +159,35 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sendAudioMessage: async (audioBlob: Blob) => {
     const { currentAgent, currentSessionId, messages } = get()
 
-    if (!currentAgent || !currentSessionId) {
-      set({ error: 'No active chat session' })
+    if (!currentAgent) {
+      set({ error: 'No active agent' })
       return
     }
 
     set({ isLoading: true, error: null })
 
     try {
+      // Ensure we have a valid session
+      let sessionId = currentSessionId
+      if (!sessionId) {
+        // Create a new session if we don't have one
+        const user = useAuthStore.getState().user
+        if (user) {
+          sessionId = await chatService.getOrCreateSession(currentAgent.id, user.id)
+        } else {
+          // For anonymous users, create external session
+          const anonymousSessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substring(7)
+          sessionId = await chatService.getOrCreateSessionByExternal(currentAgent.id, anonymousSessionId)
+        }
+        set({ currentSessionId: sessionId })
+      }
+
       // Upload audio to storage
-      const audioUrl = await chatService.uploadAudioToStorage(audioBlob, currentSessionId)
+      const audioUrl = await chatService.uploadAudioToStorage(audioBlob, sessionId)
 
       // Save user message with audio URL
       const userMessage = await chatService.saveMessage(
-        currentSessionId,
+        sessionId,
         'user',
         audioUrl
       )
@@ -168,14 +198,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Send to n8n and get response (pass audio URL as message)
       const responseText = await chatService.sendMessageToN8n(
         currentAgent,
-        currentSessionId,
+        sessionId,
         audioUrl,
         messages
       )
 
       // Save assistant response
       const assistantMessage = await chatService.saveMessage(
-        currentSessionId,
+        sessionId,
         'assistant',
         responseText
       )

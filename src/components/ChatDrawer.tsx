@@ -1,125 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Bot, User, Loader2, AlertCircle, Trash2, Mic, Square, Play, Pause } from 'lucide-react'
+import { X, Send, Bot, User, Loader2, AlertCircle, Trash2, Mic, Square } from 'lucide-react'
 import { useChatStore } from '@/stores/chatStore'
 import { Button } from './ui/Button'
 import { MessageFeedback } from './MessageFeedback'
 import { Badge } from './ui/badge'
 import { chatService } from '@/services/chatService'
 import { useChatStore as useChatStoreHook } from '@/stores/chatStore'
-
-// Audio Player Component
-function AudioPlayer({ messageId, content, role }: { messageId: string; content: string; role: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [duration, setDuration] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [audioUrl, setAudioUrl] = useState<string>('')
-
-  // Check if message content is an audio URL
-  const isAudioUrl = (content: string): boolean => {
-    return content.startsWith('http') && (
-      content.includes('voice-messages') ||
-      content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i)
-    )
-  }
-
-  // Get audio URL for message (handles both URL and base64)
-  useEffect(() => {
-    // Check if it's base64 audio
-    if (content.startsWith('__AUDIO_BASE64__:')) {
-      const base64 = content.replace('__AUDIO_BASE64__:', '')
-      const url = chatService.base64ToAudioUrl(base64)
-      setAudioUrl(url)
-    } else if (isAudioUrl(content)) {
-      setAudioUrl(content)
-    }
-  }, [content])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const updateTime = () => setCurrentTime(audio.currentTime)
-    const updateDuration = () => setDuration(audio.duration)
-    const handlePlay = () => setIsPlaying(true)
-    const handlePause = () => setIsPlaying(false)
-    const handleEnded = () => setIsPlaying(false)
-
-    audio.addEventListener('timeupdate', updateTime)
-    audio.addEventListener('loadedmetadata', updateDuration)
-    audio.addEventListener('play', handlePlay)
-    audio.addEventListener('pause', handlePause)
-    audio.addEventListener('ended', handleEnded)
-
-    return () => {
-      audio.removeEventListener('timeupdate', updateTime)
-      audio.removeEventListener('loadedmetadata', updateDuration)
-      audio.removeEventListener('play', handlePlay)
-      audio.removeEventListener('pause', handlePause)
-      audio.removeEventListener('ended', handleEnded)
-    }
-  }, [audioUrl])
-
-  const togglePlay = () => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    if (isPlaying) {
-      audio.pause()
-    } else {
-      audio.play()
-    }
-  }
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  if (!audioUrl) return null
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3 p-2 bg-black/20 rounded-lg">
-        <button
-          onClick={togglePlay}
-          className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 flex items-center justify-center transition-all"
-        >
-          {isPlaying ? (
-            <Pause className="w-5 h-5 text-orange-400" />
-          ) : (
-            <Play className="w-5 h-5 text-orange-400 ml-0.5" />
-          )}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-orange-500 transition-all"
-                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-              />
-            </div>
-            <span className="text-xs text-gray-400 whitespace-nowrap">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-          </div>
-        </div>
-      </div>
-      <audio
-        ref={audioRef}
-        src={audioUrl}
-        preload="metadata"
-        className="hidden"
-      />
-      <p className="text-xs opacity-60">
-        {role === 'user' ? 'Mensagem de áudio' : 'Resposta de áudio'}
-      </p>
-    </div>
-  )
-}
+import { AudioPlayer } from './AudioPlayer'
+import { linkifyText } from '@/lib/utils'
 
 export function ChatDrawer() {
   const {
@@ -140,6 +29,7 @@ export function ChatDrawer() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [feedbackStatus, setFeedbackStatus] = useState<'positive' | 'negative' | null>(null)
+  const [iconError, setIconError] = useState(false)
   
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -163,6 +53,11 @@ export function ChatDrawer() {
       setTimeout(() => inputRef.current?.focus(), 300)
     }
   }, [isDrawerOpen])
+
+  // Reset icon error when agent changes
+  useEffect(() => {
+    setIconError(false)
+  }, [currentAgent?.id])
 
   // Load feedback badge when session changes
   useEffect(() => {
@@ -286,32 +181,8 @@ export function ChatDrawer() {
   const isAudioUrl = (content: string): boolean => {
     return content.startsWith('http') && (
       content.includes('voice-messages') ||
-      content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i)
+      !!content.match(/\.(webm|mp3|wav|ogg|m4a)(\?|$)/i)
     )
-  }
-
-  // Get audio URL for message (handles both URL and base64)
-  const getAudioUrl = (messageId: string, content: string): string => {
-    // Check if already cached
-    if (audioUrlRefs.current.has(messageId)) {
-      return audioUrlRefs.current.get(messageId)!
-    }
-
-    // Check if it's base64 audio
-    if (content.startsWith('__AUDIO_BASE64__:')) {
-      const base64 = content.replace('__AUDIO_BASE64__:', '')
-      const url = chatService.base64ToAudioUrl(base64)
-      audioUrlRefs.current.set(messageId, url)
-      return url
-    }
-
-    // Check if it's a regular URL
-    if (isAudioUrl(content)) {
-      audioUrlRefs.current.set(messageId, content)
-      return content
-    }
-
-    return ''
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -354,8 +225,17 @@ export function ChatDrawer() {
             {/* Header */}
             <div className="flex items-center justify-between p-6 py-3 border-b border-orange-500/40 bg-gradient-to-r from-orange-500/10 to-transparent shadow-md shadow-orange-500/20">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30">
-                  <Bot className="w-5 h-5 text-orange-500" />
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30 overflow-hidden">
+                  {currentAgent?.icon_url && !iconError ? (
+                    <img 
+                      src={currentAgent.icon_url} 
+                      alt={currentAgent.name || 'Agente'} 
+                      className="w-full h-full object-cover"
+                      onError={() => setIconError(true)}
+                    />
+                  ) : (
+                    <Bot className="w-5 h-5 text-orange-500" />
+                  )}
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-white">
@@ -436,8 +316,17 @@ export function ChatDrawer() {
                   }`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30 flex-shrink-0">
-                      <Bot className="w-4 h-4 text-orange-500" />
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center border border-orange-500/30 flex-shrink-0 overflow-hidden">
+                      {currentAgent?.icon_url && !iconError ? (
+                        <img 
+                          src={currentAgent.icon_url} 
+                          alt={currentAgent.name || 'Agente'} 
+                          className="w-full h-full object-cover"
+                          onError={() => setIconError(true)}
+                        />
+                      ) : (
+                        <Bot className="w-4 h-4 text-orange-500" />
+                      )}
                     </div>
                   )}
                   
@@ -457,7 +346,7 @@ export function ChatDrawer() {
                       />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap break-words">
-                        {message.content}
+                        {linkifyText(message.content)}
                       </p>
                     )}
                     <p className="text-xs mt-2 opacity-60">
