@@ -75,6 +75,37 @@ export const chatService = {
       ? { column: 'user_id', value: userId }
       : { column: 'session_id', value: sessionId }
 
+    // Buscar a última mensagem do usuário antes da mensagem do assistente
+    let userMessage: string | null = null
+    try {
+      // Primeiro, obter a data de criação da mensagem do assistente
+      const { data: assistantMessage, error: msgError } = await supabase
+        .from('chat_messages')
+        .select('created_at, session_id')
+        .eq('id', messageId)
+        .single()
+
+      if (!msgError && assistantMessage) {
+        // Buscar a última mensagem do usuário na mesma sessão, criada antes da mensagem do assistente
+        const { data: lastUserMessage, error: userMsgError } = await supabase
+          .from('chat_messages')
+          .select('content')
+          .eq('session_id', assistantMessage.session_id)
+          .eq('role', 'user')
+          .lt('created_at', assistantMessage.created_at)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (!userMsgError && lastUserMessage) {
+          userMessage = lastUserMessage.content
+        }
+      }
+    } catch (error) {
+      // Se houver erro ao buscar a mensagem do usuário, continua sem ela (será NULL)
+      console.warn('Erro ao buscar mensagem do usuário para feedback:', error)
+    }
+
     // 1) Tenta buscar existente
     const { data: existing, error: fetchError } = await supabase
       .from('message_feedback')
@@ -87,11 +118,21 @@ export const chatService = {
       throw new Error('Falha ao buscar feedback existente')
     }
 
-    // 2) Se existir, atualiza
+    // 2) Se existir, atualiza (incluindo user_message se ainda não tiver)
     if (existing) {
+      const updatePayload: Record<string, unknown> = { 
+        value, 
+        feedback_type, 
+        block_index: 0 
+      }
+      // Atualiza user_message apenas se ainda não estiver preenchido ou se encontramos uma nova
+      if (userMessage !== null) {
+        updatePayload['user_message'] = userMessage
+      }
+
       const { error: updateError } = await supabase
         .from('message_feedback')
-        .update({ value, feedback_type, block_index: 0 })
+        .update(updatePayload)
         .eq('id', existing.id)
 
       if (updateError) throw new Error('Falha ao atualizar feedback')
@@ -106,6 +147,7 @@ export const chatService = {
       value,
       feedback_type,
       block_index: 0,
+      user_message: userMessage,
     }
     if (userId) insertPayload['user_id'] = userId
     else insertPayload['session_id'] = sessionId
@@ -125,9 +167,18 @@ export const chatService = {
           .maybeSingle()
 
         if (again) {
+          const updatePayload: Record<string, unknown> = { 
+            value, 
+            feedback_type, 
+            block_index: 0 
+          }
+          if (userMessage !== null) {
+            updatePayload['user_message'] = userMessage
+          }
+
           const { error: updateError } = await supabase
             .from('message_feedback')
-            .update({ value, feedback_type, block_index: 0 })
+            .update(updatePayload)
             .eq('id', again.id)
 
           if (updateError) throw new Error('Falha ao atualizar feedback após conflito')

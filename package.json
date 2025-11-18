@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
+    "@splinetool/react-spline": "^4.1.0",
     "@supabase/supabase-js": "^2.39.3",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.0",
+    "framer-motion": "^12.23.24",
     "lucide-react": "^0.312.0",
     "papaparse": "^5.4.1",
     "react": "^18.2.0",
@@ -22,6 +25,7 @@
     "react-intersection-observer": "^10.0.0",
     "react-router-dom": "^6.21.3",
     "tailwind-merge": "^2.2.1",
+    "usehooks-ts": "^3.1.1",
     "xlsx": "^0.18.5",
     "zod": "^3.22.4",
     "zustand": "^4.5.0"
